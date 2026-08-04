@@ -94,7 +94,7 @@
     <div class="side-panel left">
       <div id="p1Card" class="player-card active-p1">
         <div class="player-title" id="p1Title">玩家 P1 (藍)</div>
-        <div class="drop-status">分數: <span id="p1ScoreBadge" class="drop-badge">50 / 100</span></div>
+        <div class="drop-status">掉落數量: <span id="p1ScoreBadge" class="drop-badge">0 / 11</span></div>
       </div>
       <div id="statusCard" class="status-card">選擇手牌中...</div>
       <div class="info-box">
@@ -122,7 +122,7 @@
     <div class="side-panel right">
       <div id="p2Card" class="player-card">
         <div class="player-title" id="p2Title">玩家 P2 (橘)</div>
-        <div class="drop-status">分數: <span id="p2ScoreBadge" class="drop-badge">50 / 100</span></div>
+        <div class="drop-status">掉落數量: <span id="p2ScoreBadge" class="drop-badge">0 / 11</span></div>
       </div>
       <div class="hand-container-vertical">
         <div class="card" id="card0"><canvas width="60" height="60"></canvas></div>
@@ -142,19 +142,43 @@ let myRole = null;
 let remoteBodies = []; 
 
 function copyRoomId(id) {
-  navigator.clipboard.writeText(id).then(() => {
-    const btn = document.getElementById('copyBtn');
-    if(btn) {
-      btn.innerText = '✅ 已複製！';
-      btn.style.background = '#059669';
-      btn.style.borderColor = '#047857';
-      setTimeout(() => { 
-        btn.innerText = '📋 複製 ID'; 
-        btn.style.background = '#3f3f46';
-        btn.style.borderColor = '#52525b';
-      }, 2000);
-    }
-  });
+  const btn = document.getElementById('copyBtn');
+  const showCopied = () => {
+    if (!btn) return;
+    btn.innerText = '✅ 已複製！';
+    btn.style.background = '#059669';
+    btn.style.borderColor = '#047857';
+    setTimeout(() => {
+      btn.innerText = '📋 複製 ID';
+      btn.style.background = '#3f3f46';
+      btn.style.borderColor = '#52525b';
+    }, 2000);
+  };
+
+  // navigator.clipboard 需要 HTTPS 或 localhost 這種「安全環境」才能用，
+  // 直接用 file:// 開啟本機檔案時會失敗；這裡加一個備援方式確保按鈕一定有反應
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(id).then(showCopied).catch(() => fallbackCopy(id, showCopied));
+  } else {
+    fallbackCopy(id, showCopied);
+  }
+}
+
+function fallbackCopy(text, onSuccess) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  try {
+    document.execCommand('copy');
+    onSuccess();
+  } catch (err) {
+    alert('自動複製失敗，請手動選取房間 ID 複製：' + text);
+  }
+  document.body.removeChild(textarea);
 }
 
 function createRoom() {
@@ -228,7 +252,7 @@ const roundNum = (num) => Math.round(num * 10) / 10;
 function broadcastState() {
   if (myRole !== 'P1' || !conn) return;
   const snapshot = {
-    gameState, currentPlayer, playerScores, sharedHand,
+    gameState, currentPlayer, playerDrops, sharedHand,
     posX: roundNum(posX), posY: roundNum(posY), activeMatrix, activeShape, countdownValue,
     selectedCardIndex, lastDropWarningMsg,
     bodies: placedBodies.map(b => ({
@@ -246,7 +270,7 @@ function broadcastState() {
 
 function applySyncedState(state) {
   gameState = state.gameState; currentPlayer = state.currentPlayer;
-  playerScores = state.playerScores; sharedHand = state.sharedHand;
+  playerDrops = state.playerDrops; sharedHand = state.sharedHand;
   posX = state.posX; posY = state.posY; activeMatrix = state.activeMatrix;
   activeShape = state.activeShape; countdownValue = state.countdownValue;
   selectedCardIndex = state.selectedCardIndex; lastDropWarningMsg = state.lastDropWarningMsg;
@@ -254,6 +278,9 @@ function applySyncedState(state) {
   updateUI(); renderHandCards();
   if (gameState === 'GAME_OVER') document.getElementById('modalOverlay').classList.add('active');
   else document.getElementById('modalOverlay').classList.remove('active');
+  // 立即手動重繪一次：背景分頁的 requestAnimationFrame 動畫迴圈會被瀏覽器大幅節流，
+  // 只依賴動畫迴圈會導致 P2 分頁沒被聚焦時畫面完全沒反應；資料一到就強制畫一次可以避開這個限制
+  drawFrame();
 }
 
 // --- 遊戲核心邏輯 ---
@@ -280,7 +307,7 @@ const engine = Engine.create({ positionIterations: 18, velocityIterations: 18, e
 const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
 
 let currentPlayer = 1; let gameState = 'SELECT_CARD'; 
-let playerScores = { 1: 50, 2: 50 }; const SCORE_START = 50; const SCORE_WIN = 100; const SCORE_LOSE = 0; let lastDropWarningMsg = '';
+let playerDrops = { 1: 0, 2: 0 }; let lastDropWarningMsg = '';
 let sharedHand = []; let selectedCardIndex = 0; let activeShape = null; let activeMatrix = null;
 let posX = CANVAS_WIDTH / 2; let posY = 200; let countdownTimer = null; let countdownValue = 3;
 let placedBodies = []; let currentDroppedBody = null; let hasTouched = false; let touchTime = 0; let stableSince = null;   
@@ -346,7 +373,7 @@ function isStrictlyStationary() {
 
 function initGame() {
   placedBodies.forEach(b => Composite.remove(engine.world, b)); placedBodies = [];
-  currentPlayer = 1; playerScores = { 1: SCORE_START, 2: SCORE_START }; lastDropWarningMsg = ''; gameState = 'SELECT_CARD'; selectedCardIndex = 0; currentDroppedBody = null; hasTouched = false; stableSince = null; stabilitySnapshot = null; totalPlacementCount = 0; drawCount = 0; lastIDrawnAt = -Infinity; pendingDotCount = 0; lastDotPairTriggerAt = -Infinity;
+  currentPlayer = 1; playerDrops = { 1: 0, 2: 0 }; lastDropWarningMsg = ''; gameState = 'SELECT_CARD'; selectedCardIndex = 0; currentDroppedBody = null; hasTouched = false; stableSince = null; stabilitySnapshot = null; totalPlacementCount = 0; drawCount = 0; lastIDrawnAt = -Infinity; pendingDotCount = 0; lastDotPairTriggerAt = -Infinity;
   sharedHand = [getRandomShape(), getRandomShape(), getRandomShape(), getRandomShape(), getRandomShape()];
   const initialBaseBody = createPhysicsBodyFromMatrix(CANVAS_WIDTH / 2, INITIAL_BASE_Y, [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]], '#546e7a', true);
   placedBodies.push(initialBaseBody);
@@ -377,11 +404,11 @@ function createPhysicsBodyFromMatrix(x, y, matrix, color, isStatic = false) {
 
 function updateUI() {
   document.getElementById('p1Card').className = `player-card ${currentPlayer === 1 ? 'active-p1' : ''}`;
-  document.getElementById('p1ScoreBadge').innerText = `${playerScores[1]} / ${SCORE_WIN}`;
-  document.getElementById('p1ScoreBadge').className = `drop-badge ${playerScores[1] <= 20 ? 'warn' : ''}`;
+  document.getElementById('p1ScoreBadge').innerText = `${playerDrops[1]} / 11`;
+  document.getElementById('p1ScoreBadge').className = `drop-badge ${playerDrops[1] > 0 ? 'warn' : ''}`;
   document.getElementById('p2Card').className = `player-card ${currentPlayer === 2 ? 'active-p2' : ''}`;
-  document.getElementById('p2ScoreBadge').innerText = `${playerScores[2]} / ${SCORE_WIN}`;
-  document.getElementById('p2ScoreBadge').className = `drop-badge ${playerScores[2] <= 20 ? 'warn' : ''}`;
+  document.getElementById('p2ScoreBadge').innerText = `${playerDrops[2]} / 11`;
+  document.getElementById('p2ScoreBadge').className = `drop-badge ${playerDrops[2] > 0 ? 'warn' : ''}`;
 
   const statusCard = document.getElementById('statusCard');
   if (lastDropWarningMsg) statusCard.innerHTML = `<span class="warning-msg">${lastDropWarningMsg}</span>`;
@@ -481,11 +508,9 @@ window.addEventListener('keydown', (e) => {
   if (myRole === 'P1' && currentPlayer === 1) handleGameInput(keyStr);
 });
 
-function countCells(matrix) { let count = 0; for (const row of matrix) for (const cell of row) if (cell === 1) count++; return count; }
-
 function dropCurrentBlock() {
   gameState = 'DROP_WAIT'; hasTouched = false; touchTime = 0; stableSince = null; stabilitySnapshot = null; totalPlacementCount++;
-  playerScores[currentPlayer] += countCells(activeMatrix); updateUI();
+  updateUI();
   currentDroppedBody = createPhysicsBodyFromMatrix(posX, posY, activeMatrix, activeShape.color, false); placedBodies.push(currentDroppedBody);
 }
 
@@ -493,9 +518,9 @@ function processFallenBlocks() {
   const fallen = [];
   placedBodies = placedBodies.filter(b => { if (b.position.y > CANVAS_HEIGHT + 30 || b.position.x < -80 || b.position.x > CANVAS_WIDTH + 80) { fallen.push(b); Composite.remove(engine.world, b); return false; } return true; });
   if (fallen.length > 0) {
-    playerScores[currentPlayer] = Math.max(SCORE_LOSE, playerScores[currentPlayer] - fallen.length * 1);
-    if (gameState !== 'GAME_OVER' && playerScores[currentPlayer] <= SCORE_LOSE) endGame(`P${currentPlayer === 1 ? 2 : 1} 獲勝！`, `P${currentPlayer} 分數被扣到 0 分，宣告落敗！`);
-    else { lastDropWarningMsg = `⚠️ P${currentPlayer} 方塊掉落！(扣 1 分，剩餘 ${playerScores[currentPlayer]} 分)`; updateUI(); }
+    playerDrops[currentPlayer] += fallen.length;
+    if (gameState !== 'GAME_OVER' && playerDrops[currentPlayer] >= 11) endGame(`P${currentPlayer === 1 ? 2 : 1} 獲勝！`, `P${currentPlayer} 累積掉落 11 個方塊達到上限！`);
+    else { lastDropWarningMsg = `⚠️ P${currentPlayer} 方塊掉落！(累積 ${playerDrops[currentPlayer]}/11 個)`; updateUI(); }
   }
 }
 
@@ -503,7 +528,6 @@ function finishTurn() {
   if (gameState === 'GAME_OVER') return;
   hideTopRightTimer(); currentDroppedBody = null; hasTouched = false;
   if (getHighestY() <= 60) { endGame('平局！', '雙方防守極為出色，積木塔已堆疊至頂端！'); return; }
-  if (playerScores[currentPlayer] >= SCORE_WIN) { endGame(`P${currentPlayer} 獲勝！`, `P${currentPlayer} 達成 ${SCORE_WIN} 分並成功穩定！`); return; }
   currentPlayer = currentPlayer === 1 ? 2 : 1; selectedCardIndex = 0; gameState = 'SELECT_CARD'; updateUI(); renderHandCards();
 }
 
@@ -513,27 +537,7 @@ function resetGame() { if (myRole === 'P1') initGame(); }
 const PHYSICS_SUBSTEPS = 2;
 let frameCounter = 0;
 
-function renderLoop() {
-  if (myRole === 'P1') {
-    for (let i = 0; i < PHYSICS_SUBSTEPS; i++) Engine.update(engine, (1000 / 60) / PHYSICS_SUBSTEPS);
-    placedBodies.forEach(b => { if (!b.isStatic) { const speed = Math.hypot(b.velocity.x, b.velocity.y); if (speed > 18) Body.setVelocity(b, { x: b.velocity.x * (18 / speed), y: b.velocity.y * (18 / speed) }); } });
-    processFallenBlocks();
-
-    if (gameState === 'DROP_WAIT') {
-      if (!hasTouched) { hideTopRightTimer(); if (currentDroppedBody && currentDroppedBody.position.y > CANVAS_HEIGHT + 30) finishTurn(); }
-      else {
-        const elapsed = Date.now() - touchTime;
-        if (elapsed < 3000) { hideTopRightTimer(); updateUI(); if (isStrictlyStationary()) finishTurn(); }
-        else if (elapsed < 6000) { showTopRightTimer(Math.max(1, Math.ceil((6000 - elapsed) / 1000))); updateUI(); if (isStrictlyStationary()) finishTurn(); }
-        else finishTurn();
-      }
-    }
-
-    // 稍微降幀廣播並壓縮，確保網路順暢不延遲 P2 的操作
-    frameCounter++;
-    if (frameCounter % 2 === 0) broadcastState(); 
-  }
-
+function drawFrame() {
   ctx.fillStyle = "#141417"; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   ctx.save(); ctx.strokeStyle = '#b71c1c'; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(0, 60); ctx.lineTo(CANVAS_WIDTH, 60); ctx.stroke(); ctx.restore();
 
@@ -571,6 +575,30 @@ function renderLoop() {
     ctx.save(); ctx.strokeStyle = '#333338'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(posX - halfWidth, lineStartY); ctx.lineTo(posX - halfWidth, CANVAS_HEIGHT); ctx.moveTo(posX + halfWidth, lineStartY); ctx.lineTo(posX + halfWidth, CANVAS_HEIGHT); ctx.stroke(); ctx.restore();
     if (gameState === 'COUNTDOWN') { ctx.save(); ctx.font = 'bold 28px sans-serif'; ctx.fillStyle = '#e2e8f0'; ctx.textAlign = 'center'; ctx.fillText(countdownValue, posX, posY - (activeMatrix.length * TILE_SIZE) / 2 - 12); ctx.restore(); }
   }
+}
+
+function renderLoop() {
+  if (myRole === 'P1') {
+    for (let i = 0; i < PHYSICS_SUBSTEPS; i++) Engine.update(engine, (1000 / 60) / PHYSICS_SUBSTEPS);
+    placedBodies.forEach(b => { if (!b.isStatic) { const speed = Math.hypot(b.velocity.x, b.velocity.y); if (speed > 18) Body.setVelocity(b, { x: b.velocity.x * (18 / speed), y: b.velocity.y * (18 / speed) }); } });
+    processFallenBlocks();
+
+    if (gameState === 'DROP_WAIT') {
+      if (!hasTouched) { hideTopRightTimer(); if (currentDroppedBody && currentDroppedBody.position.y > CANVAS_HEIGHT + 30) finishTurn(); }
+      else {
+        const elapsed = Date.now() - touchTime;
+        if (elapsed < 3000) { hideTopRightTimer(); updateUI(); if (isStrictlyStationary()) finishTurn(); }
+        else if (elapsed < 6000) { showTopRightTimer(Math.max(1, Math.ceil((6000 - elapsed) / 1000))); updateUI(); if (isStrictlyStationary()) finishTurn(); }
+        else finishTurn();
+      }
+    }
+
+    // 稍微降幀廣播並壓縮，確保網路順暢不延遲 P2 的操作
+    frameCounter++;
+    if (frameCounter % 2 === 0) broadcastState(); 
+  }
+
+  drawFrame();
   requestAnimationFrame(renderLoop);
 }
 
