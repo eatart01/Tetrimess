@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>極簡 2D 雙人搖晃疊疊樂 - 線上連線版</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      background-color: #0f0f12;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #94a3b8;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      padding-top: 16px;
+    }
+
+    .layout-wrapper {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 28px;
+      max-height: 95vh;
+    }
+
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 250px;
+    }
+
+    .center-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .player-card {
+      background: #18181c;
+      border: 1px solid #27272a;
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: all 0.3s ease;
+    }
+
+    .player-card.active-p1 {
+      border-color: #3b82f6;
+      background: #1e293b;
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+    }
+
+    .player-card.active-p2 {
+      border-color: #f97316;
+      background: #2a1b12;
+      box-shadow: 0 0 12px rgba(249, 115, 22, 0.2);
+    }
+
+    .player-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #cbd5e1;
+    }
+
+    .drop-status {
+      font-size: 0.8rem;
+      color: #71717a;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .drop-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: #27272a;
+      color: #a1a1aa;
+    }
+
+    .drop-badge.warn {
+      background: #7f1d1d;
+      color: #fca5a5;
+    }
+
+    .status-card {
+      background: #18181c;
+      border: 1px solid #27272a;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 0.85rem;
+      color: #a1a1aa;
+      line-height: 1.4;
+      text-align: center;
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .status-card .warning-msg {
+      color: #f87171;
+      font-weight: 600;
+    }
+
+    .info-box {
+      background: #18181c;
+      border: 1px dashed #3f3f46;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 0.8rem;
+      color: #818cf8;
+      line-height: 1.5;
+    }
+
+    .info-box h4 {
+      color: #cbd5e1;
+      margin-bottom: 6px;
+      font-size: 0.85rem;
+    }
+
+    .key {
+      background: #27272a;
+      color: #e2e8f0;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-family: monospace;
+      border: 1px solid #3f3f46;
+    }
+
+    .hand-container-vertical {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .card {
+      width: 66px;
+      height: 66px;
+      background: #18181c;
+      border: 2px solid #27272a;
+      border-radius: 8px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: all 0.2s ease;
+    }
+
+    .card.selected-p1 {
+      border-color: #3b82f6;
+      background: #1e293b;
+      transform: scale(1.08);
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+    }
+
+    .card.selected-p2 {
+      border-color: #f97316;
+      background: #2a1b12;
+      transform: scale(1.08);
+      box-shadow: 0 0 12px rgba(249, 115, 22, 0.3);
+    }
+
+    .game-container {
+      position: relative;
+      background: #141417;
+      border-radius: 12px;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.8), 0 8px 32px rgba(0,0,0,0.6);
+      border: 1px solid #27272a;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    .top-right-timer {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid #ef4444;
+      color: #fca5a5;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      display: none;
+      align-items: center;
+      gap: 4px;
+      z-index: 5;
+    }
+
+    .top-right-timer.active {
+      display: flex;
+    }
+
+    .modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(10, 10, 12, 0.92);
+      backdrop-filter: blur(6px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      z-index: 10;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 8px;
+    }
+
+    .modal-desc {
+      font-size: 0.95rem;
+      color: #94a3b8;
+      margin-bottom: 20px;
+      text-align: center;
+      padding: 0 20px;
+    }
+
+    .btn-restart {
+      padding: 10px 24px;
+      background: #4f46e5;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-restart:hover {
+      background: #4338ca;
+    }
+
+    .room-input {
+      background: #18181c;
+      border: 1px solid #3f3f46;
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      outline: none;
+      width: 180px;
+      text-align: center;
+    }
+  </style>
+  <!-- 引入 Matter.js 與 PeerJS (WebRTC 連線) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body>
+
+  <!-- 大廳 Modal (點擊開房或加房) -->
+  <div id="lobbyOverlay" class="modal-overlay active" style="z-index: 100;">
+    <div class="modal-title">線上對戰大廳</div>
+    <div class="modal-desc" id="lobbyStatus">請選擇建立房間，或是輸入朋友的房間 ID 連線</div>
+    
+    <div style="display:flex; flex-direction:column; gap:16px; align-items:center; margin-top:10px;">
+      <button class="btn-restart" onclick="createRoom()">建立房間 (我是 P1)</button>
+      
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="text" id="roomInput" class="room-input" placeholder="輸入房間 ID">
+        <button class="btn-restart" style="background:#059669;" onclick="joinRoom()">加入房間 (我是 P2)</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout-wrapper">
+    <!-- 【左側欄】：P1 資訊卡 + 狀態 & 操作說明 -->
+    <div class="side-panel left">
+      <div id="p1Card" class="player-card active-p1">
+        <div class="player-title" id="p1Title">玩家 P1 (藍)</div>
+        <div class="drop-status">分數: <span id="p1ScoreBadge" class="drop-badge">50 / 100</span></div>
+      </div>
+
+      <div id="statusCard" class="status-card">
+        選擇手牌中...
+      </div>
+
+      <div class="info-box">
+        <h4>按鍵操作指示</h4>
+        <div><span class="key">←</span> <span class="key">→</span> <span class="key">↑</span> <span class="key">↓</span> 切換/移動</div>
+        <div style="margin-top: 4px;"><span class="key">R</span> 旋轉方塊</div>
+        <div style="margin-top: 4px;"><span class="key">E</span> 確定選擇 / 鎖定落點</div>
+      </div>
+    </div>
+
+    <!-- 【中間欄】：遊戲畫面 -->
+    <div class="center-panel">
+      <div class="game-container">
+        <div id="topRightTimer" class="top-right-timer">
+          <span>安定倒數:</span> <span id="timerVal">3</span>s
+        </div>
+
+        <canvas id="gameCanvas" width="440" height="600"></canvas>
+        
+        <div id="modalOverlay" class="modal-overlay">
+          <div id="modalTitle" class="modal-title">P1 獲勝！</div>
+          <div id="modalDesc" class="modal-desc">P2 累積掉落數量達到上限</div>
+          <button class="btn-restart" id="btnRestart" onclick="resetGame()">重新開始</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 【右側欄】：P2 資訊卡 + 5 張手牌選擇區 -->
+    <div class="side-panel right">
+      <div id="p2Card" class="player-card">
+        <div class="player-title" id="p2Title">玩家 P2 (橘)</div>
+        <div class="drop-status">分數: <span id="p2ScoreBadge" class="drop-badge">50 / 100</span></div>
+      </div>
+
+      <div class="hand-container-vertical">
+        <div class="card" id="card0"><canvas width="60" height="60"></canvas></div>
+        <div class="card" id="card1"><canvas width="60" height="60"></canvas></div>
+        <div class="card" id="card2"><canvas width="60" height="60"></canvas></div>
+        <div class="card" id="card3"><canvas width="60" height="60"></canvas></div>
+        <div class="card" id="card4"><canvas width="60" height="60"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// --- 線上對戰 (PeerJS) 變數與邏輯 ---
+let peer = null;
+let conn = null;
+let myRole = null; // 'P1' 或 'P2'
+let remoteBodies = []; // P2 用於繪製 P1 廣播過來的物理方塊
+
+function createRoom() {
+  const roomId = 'stack-' + Math.floor(1000 + Math.random() * 9000);
+  peer = new Peer(roomId);
+  myRole = 'P1';
+
+  document.getElementById('lobbyStatus').innerText = '正在建立房間...';
+
+  peer.on('open', (id) => {
+    document.getElementById('lobbyStatus').innerHTML = `房間建立成功！<br>請將此房間 ID 給朋友：<b style="color:#38bdf8; font-size:1.2rem;">${id}</b>`;
+  });
+
+  peer.on('connection', (c) => {
+    conn = c;
+    setupConnection();
+    document.getElementById('lobbyOverlay').classList.remove('active');
+    initGame();
+  });
+}
+
+function joinRoom() {
+  const targetId = document.getElementById('roomInput').value.trim();
+  if (!targetId) return alert('請輸入房間 ID');
+  
+  peer = new Peer();
+  myRole = 'P2';
+  document.getElementById('lobbyStatus').innerText = '正在連線至房間...';
+
+  peer.on('open', () => {
+    conn = peer.connect(targetId);
+    setupConnection();
+  });
+
+  peer.on('error', (err) => {
+    alert('連線失敗，請確認房間 ID 是否正確');
+    document.getElementById('lobbyStatus').innerText = '連線失敗，請重試。';
+  });
+}
+
+function setupConnection() {
+  conn.on('open', () => {
+    document.getElementById('lobbyOverlay').classList.remove('active');
+    document.getElementById('p1Title').innerText = myRole === 'P1' ? '玩家 P1 (你)' : '玩家 P1 (藍)';
+    document.getElementById('p2Title').innerText = myRole === 'P2' ? '玩家 P2 (你)' : '玩家 P2 (橘)';
+    if (myRole === 'P2') {
+      document.getElementById('btnRestart').style.display = 'none'; // 僅 P1 能點重新開始
+    }
+  });
+
+  conn.on('data', (data) => {
+    if (myRole === 'P1') {
+      // P1 收到 P2 的操作指令
+      if (data.type === 'KEY_INPUT' && currentPlayer === 2) {
+        handleGameInput(data.key);
+      }
+    } else if (myRole === 'P2') {
+      // P2 收到 P1 廣播的完整遊戲狀態
+      if (data.type === 'SYNC') {
+        applySyncedState(data.state);
+      }
+    }
+  });
+}
+
+// P1 廣播畫面上所有方塊與遊戲狀態給 P2
+function broadcastState() {
+  if (myRole !== 'P1' || !conn || !conn.open) return;
+
+  const snapshot = {
+    gameState, currentPlayer, playerScores, sharedHand,
+    posX, posY, activeMatrix, activeShape, countdownValue,
+    selectedCardIndex, lastDropWarningMsg,
+    bodies: placedBodies.map(b => ({
+      x: b.position.x, y: b.position.y, angle: b.angle,
+      color: b.customColor, tileGrid: b.tileGrid,
+      parts: b.parts.map(p => ({
+        x: p.position.x, y: p.position.y,
+        tileCount: p.tileCount,
+        vertices: p.vertices.map(v => ({ x: v.x, y: v.y }))
+      }))
+    }))
+  };
+  conn.send({ type: 'SYNC', state: snapshot });
+}
+
+// P2 接收並套用 P1 發送的狀態
+function applySyncedState(state) {
+  gameState = state.gameState;
+  currentPlayer = state.currentPlayer;
+  playerScores = state.playerScores;
+  sharedHand = state.sharedHand;
+  posX = state.posX;
+  posY = state.posY;
+  activeMatrix = state.activeMatrix;
+  activeShape = state.activeShape;
+  countdownValue = state.countdownValue;
+  selectedCardIndex = state.selectedCardIndex;
+  lastDropWarningMsg = state.lastDropWarningMsg;
+  remoteBodies = state.bodies;
+
+  updateUI();
+  renderHandCards();
+
+  if (gameState === 'GAME_OVER') {
+    document.getElementById('modalOverlay').classList.add('active');
+  } else {
+    document.getElementById('modalOverlay').classList.remove('active');
+  }
+}
+
+// --- 遊戲核心邏輯 ---
+const TILE_SIZE = 24; 
+const CANVAS_WIDTH = 440;
+const CANVAS_HEIGHT = 600; 
+const INITIAL_BASE_Y = CANVAS_HEIGHT - (1.5 * TILE_SIZE); 
+
+const SHAPES_DATABASE = [
+  { name: 'I', color: '#8ca1ab', matrix: [[1,1,1,1]] },
+  { name: 'O', color: '#af9a92', matrix: [[1,1],[1,1]] },
+  { name: 'T', color: '#9ead9d', matrix: [[0,1,0],[1,1,1]] },
+  { name: 'S', color: '#c6b7b2', matrix: [[0,1,1],[1,1,0]] },
+  { name: 'Z', color: '#cbbe93', matrix: [[1,1,0],[0,1,1]] },
+  { name: 'J', color: '#78909c', matrix: [[1,0,0],[1,1,1]] },
+  { name: 'L', color: '#ddd4d0', matrix: [[0,0,1],[1,1,1]] },
+  { name: 'Plus', color: '#adadad', matrix: [[0,1,0],[1,1,1],[0,1,0]] },
+  { name: 'LongL', color: '#8c7e73', matrix: [[1,0],[1,0],[1,0],[1,1]] },
+  { name: 'U', color: '#9f45b755', matrix: [[1,0,1],[1,1,1]] },
+  { name: 'SmallL', color: '#de3d7855', matrix: [[1,0],[1,1]] },
+  { name: 'Dot', color: '#e5e5e5', matrix: [[1]] },
+  { name: 'Domino', color: '#9e847a', matrix: [[1,1]] },
+  { name: 'Line3', color: '#bbbf4b55', matrix: [[1,1,1]] },
+  { name: 'BigCorner', color: '#ea653c55', matrix: [[1,0,0],[1,0,0],[1,1,1]] }
+];
+
+const ADVANCED_SHAPE_NAMES = ['L', 'Plus', 'LongL'];
+const ADVANCED_SHAPE_UNLOCK_COUNT = 15;
+let totalPlacementCount = 0; 
+
+const I_SHAPE_MIN_GAP = 5;
+let drawCount = 0;        
+let lastIDrawnAt = -Infinity; 
+
+const DOT_PAIR_TRIGGER_WEIGHT = 1.3; 
+const DOT_PAIR_MIN_GAP = 6;
+let pendingDotCount = 0;            
+let lastDotPairTriggerAt = -Infinity; 
+
+const { Engine, Bodies, Composite, Body, Events } = Matter;
+const engine = Engine.create({ 
+  positionIterations: 18,
+  velocityIterations: 18,
+  enableSleeping: false,
+  gravity: { x: 0, y: 1.2, scale: 0.001 } 
+});
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let currentPlayer = 1; 
+let gameState = 'SELECT_CARD'; 
+
+let playerScores = { 1: 50, 2: 50 };
+const SCORE_START = 50;
+const SCORE_WIN = 100;
+const SCORE_LOSE = 0;
+let lastDropWarningMsg = '';
+
+let sharedHand = [];
+let selectedCardIndex = 0;
+let activeShape = null; 
+let activeMatrix = null;
+
+let posX = CANVAS_WIDTH / 2;
+let posY = 200;
+
+let countdownTimer = null;
+let countdownValue = 3;
+
+let placedBodies = [];
+let currentDroppedBody = null;
+let hasTouched = false;      
+let touchTime = 0;          
+let stableSince = null;   
+
+Events.on(engine, 'collisionStart', (event) => {
+  if (gameState === 'DROP_WAIT' && !hasTouched && currentDroppedBody) {
+    const parts = currentDroppedBody.parts;
+    event.pairs.forEach(pair => {
+      if (parts.includes(pair.bodyA) || parts.includes(pair.bodyB)) {
+        hasTouched = true;
+        touchTime = Date.now();
+        stableSince = null;
+        stabilitySnapshot = null;
+      }
+    });
+  }
+});
+
+const BASE_LEFT_X = CANVAS_WIDTH / 2 - (14 * TILE_SIZE) / 2;
+
+function isStraightLineMatrix(matrix) {
+  const rows = matrix.length;
+  const cols = matrix[0].length;
+  if (rows !== 1 && cols !== 1) return false;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (matrix[r][c] !== 1) return false;
+    }
+  }
+  return true;
+}
+
+function snapToGrid(px, cols) {
+  const halfWidth = (cols * TILE_SIZE) / 2;
+  const leftEdge = px - halfWidth;
+  const snappedLeftEdge = BASE_LEFT_X + Math.round((leftEdge - BASE_LEFT_X) / TILE_SIZE) * TILE_SIZE;
+  return snappedLeftEdge + halfWidth;
+}
+
+function cloneShape(template) {
+  return { ...template, matrix: JSON.parse(JSON.stringify(template.matrix)) };
+}
+
+function getRandomShape() {
+  drawCount++;
+  if (pendingDotCount > 0) {
+    pendingDotCount--;
+    return cloneShape(SHAPES_DATABASE.find(s => s.name === 'Dot'));
+  }
+
+  const isUnlocked = totalPlacementCount >= ADVANCED_SHAPE_UNLOCK_COUNT;
+  let normalPool = (isUnlocked
+    ? SHAPES_DATABASE
+    : SHAPES_DATABASE.filter(s => !ADVANCED_SHAPE_NAMES.includes(s.name))
+  ).filter(s => s.name !== 'Dot');
+
+  if (drawCount - lastIDrawnAt < I_SHAPE_MIN_GAP) {
+    normalPool = normalPool.filter(s => s.name !== 'I');
+  }
+
+  const dotPairAvailable = (drawCount - lastDotPairTriggerAt) >= DOT_PAIR_MIN_GAP;
+  const totalWeight = normalPool.length + (dotPairAvailable ? DOT_PAIR_TRIGGER_WEIGHT : 0);
+  let roll = Math.random() * totalWeight;
+
+  if (dotPairAvailable && roll < DOT_PAIR_TRIGGER_WEIGHT) {
+    lastDotPairTriggerAt = drawCount;
+    pendingDotCount = 1;
+    return cloneShape(SHAPES_DATABASE.find(s => s.name === 'Dot'));
+  }
+
+  roll -= dotPairAvailable ? DOT_PAIR_TRIGGER_WEIGHT : 0;
+  const index = Math.min(normalPool.length - 1, Math.floor(roll));
+  const template = normalPool[index];
+  if (template.name === 'I') lastIDrawnAt = drawCount;
+  return cloneShape(template);
+}
+
+function rotateMatrixClockwise(matrix) {
+  const rows = matrix.length;
+  const cols = matrix[0].length;
+  const result = Array.from({ length: cols }, () => Array(rows).fill(0));
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      result[c][rows - 1 - r] = matrix[r][c];
+    }
+  }
+  return result;
+}
+
+function getHighestY() {
+  let minY = CANVAS_HEIGHT - (2 * TILE_SIZE);
+  placedBodies.forEach(b => {
+    if (!b.isStatic) {
+      b.vertices.forEach(v => { if (v.y < minY) minY = v.y; });
+    }
+  });
+  return minY;
+}
+
+function updateSpawnY() {
+  const highestY = getHighestY();
+  const shapeRows = activeMatrix ? activeMatrix.length : 1;
+  const shapeHalfHeight = (shapeRows * TILE_SIZE) / 2;
+  posY = Math.max(60, highestY - (2 * TILE_SIZE) - shapeHalfHeight);
+}
+
+const STATIONARY_HOLD_MS = 2000;
+const STATIONARY_DRIFT_TOLERANCE_PX = 1.5;   
+const STATIONARY_DRIFT_TOLERANCE_RAD = 0.02; 
+let stabilitySnapshot = null; 
+
+function captureStabilitySnapshot() {
+  stabilitySnapshot = placedBodies
+    .filter(b => !b.isStatic)
+    .map(b => ({ body: b, x: b.position.x, y: b.position.y, angle: b.angle }));
+}
+
+function hasDriftedBeyondTolerance() {
+  if (!stabilitySnapshot) return false;
+  for (const snap of stabilitySnapshot) {
+    const dx = snap.body.position.x - snap.x;
+    const dy = snap.body.position.y - snap.y;
+    const dist = Math.hypot(dx, dy);
+    const dAngle = Math.abs(snap.body.angle - snap.angle);
+    if (dist > STATIONARY_DRIFT_TOLERANCE_PX || dAngle > STATIONARY_DRIFT_TOLERANCE_RAD) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isStrictlyStationary() {
+  for (let b of placedBodies) {
+    if (!b.isStatic) {
+      const speed = Math.hypot(b.velocity.x, b.velocity.y);
+      const angularSpeed = Math.abs(b.angularVelocity);
+      if (speed > 0.03 || angularSpeed > 0.03) {
+        stableSince = null;
+        stabilitySnapshot = null;
+        return false;
+      }
+    }
+  }
+
+  if (stableSince === null) {
+    stableSince = Date.now();
+    captureStabilitySnapshot();
+    return false;
+  }
+
+  if (hasDriftedBeyondTolerance()) {
+    stableSince = Date.now();
+    captureStabilitySnapshot();
+    return false;
+  }
+
+  return (Date.now() - stableSince) >= STATIONARY_HOLD_MS;
+}
+
+function initGame() {
+  placedBodies.forEach(b => Composite.remove(engine.world, b));
+  placedBodies = [];
+  currentPlayer = 1;
+  playerScores = { 1: SCORE_START, 2: SCORE_START };
+  lastDropWarningMsg = '';
+  gameState = 'SELECT_CARD';
+  selectedCardIndex = 0;
+  currentDroppedBody = null;
+  hasTouched = false;
+  stableSince = null;
+  stabilitySnapshot = null;
+  totalPlacementCount = 0;
+  drawCount = 0;
+  lastIDrawnAt = -Infinity;
+  pendingDotCount = 0;
+  lastDotPairTriggerAt = -Infinity;
+
+  sharedHand = [
+    getRandomShape(), getRandomShape(), getRandomShape(),
+    getRandomShape(), getRandomShape()
+  ];
+
+  const newBaseMatrix = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]];
+  const initialBaseBody = createPhysicsBodyFromMatrix(CANVAS_WIDTH / 2, INITIAL_BASE_Y, newBaseMatrix, '#546e7a', true);
+  placedBodies.push(initialBaseBody);
+
+  document.getElementById('modalOverlay').classList.remove('active');
+  hideTopRightTimer();
+  updateUI();
+  renderHandCards();
+}
+
+function createPhysicsBodyFromMatrix(x, y, matrix, color, isStatic = false) {
+  const rows = matrix.length;
+  const cols = matrix[0].length;
+
+  if (isStraightLineMatrix(matrix)) {
+    const width = cols * TILE_SIZE;
+    const height = rows * TILE_SIZE;
+    const body = Bodies.rectangle(x, y, width, height, {
+      isStatic: isStatic,
+      friction: 1.2,
+      frictionStatic: 1.4,
+      frictionAir: 0.06,
+      restitution: 0,
+      density: 0.002,
+      render: { fillStyle: color, strokeStyle: '#18181c', lineWidth: 1 }
+    });
+    body.customColor = color;
+    body.tileGrid = { rows, cols, tileSize: TILE_SIZE };
+    Composite.add(engine.world, body);
+    return body;
+  }
+
+  const parts = [];
+  const offsetX = (cols * TILE_SIZE) / 2;
+  const offsetY = (rows * TILE_SIZE) / 2;
+
+  for (let r = 0; r < rows; r++) {
+    let c = 0;
+    while (c < cols) {
+      if (matrix[r][c] === 1) {
+        const runStart = c;
+        while (c < cols && matrix[r][c] === 1) c++;
+        const runLength = c - runStart; 
+        const runWidth = runLength * TILE_SIZE;
+        const px = x + (runStart * TILE_SIZE + runWidth / 2) - offsetX;
+        const py = y + (r * TILE_SIZE + TILE_SIZE / 2) - offsetY;
+        const box = Bodies.rectangle(px, py, runWidth, TILE_SIZE, {
+          render: { fillStyle: color, strokeStyle: '#18181c', lineWidth: 1 }
+        });
+        box.tileCount = runLength; 
+        parts.push(box);
+      } else {
+        c++;
+      }
+    }
+  }
+
+  const compoundBody = Body.create({
+    parts: parts, isStatic: isStatic,
+    friction: 1.2, 
+    frictionStatic: 1.4,
+    frictionAir: 0.06,
+    restitution: 0, 
+    density: 0.002
+  });
+  Body.setPosition(compoundBody, { x, y });
+  compoundBody.customColor = color;
+  Composite.add(engine.world, compoundBody);
+  return compoundBody;
+}
+
+function updateUI() {
+  const p1Card = document.getElementById('p1Card');
+  const p1Badge = document.getElementById('p1ScoreBadge');
+  p1Card.className = `player-card ${currentPlayer === 1 ? 'active-p1' : ''}`;
+  p1Badge.innerText = `${playerScores[1]} / ${SCORE_WIN}`;
+  p1Badge.className = `drop-badge ${playerScores[1] <= 20 ? 'warn' : ''}`;
+
+  const p2Card = document.getElementById('p2Card');
+  const p2Badge = document.getElementById('p2ScoreBadge');
+  p2Card.className = `player-card ${currentPlayer === 2 ? 'active-p2' : ''}`;
+  p2Badge.innerText = `${playerScores[2]} / ${SCORE_WIN}`;
+  p2Badge.className = `drop-badge ${playerScores[2] <= 20 ? 'warn' : ''}`;
+
+  const statusCard = document.getElementById('statusCard');
+  if (lastDropWarningMsg) {
+    statusCard.innerHTML = `<span class="warning-msg">${lastDropWarningMsg}</span>`;
+  } else if (gameState === 'SELECT_CARD') {
+    statusCard.innerHTML = `P${currentPlayer} 回合：請在右側選擇 (<span class="key">E</span> 選定)`;
+  } else if (gameState === 'POSITIONING') {
+    statusCard.innerHTML = `P${currentPlayer} 放置中`;
+  } else if (gameState === 'COUNTDOWN') {
+    statusCard.innerHTML = `已鎖定！倒數 <b>${countdownValue}</b> 秒釋放...`;
+  } else if (gameState === 'DROP_WAIT') {
+    if (!hasTouched) {
+      statusCard.innerHTML = `方塊下落中...`;
+    } else {
+      const elapsed = Date.now() - touchTime;
+      if (elapsed < 3000) {
+        statusCard.innerHTML = `下落接觸！判定平穩中 (3秒內)...`;
+      } else {
+        const rem = Math.max(1, Math.ceil((6000 - elapsed) / 1000));
+        statusCard.innerHTML = `⚠️ 仍未靜止！進入 <b>安定倒數 ${rem} 秒</b>...`;
+      }
+    }
+  }
+}
+
+function renderHandCards() {
+  for (let i = 0; i < 5; i++) {
+    const cardEl = document.getElementById(`card${i}`);
+    const cctx = cardEl.querySelector('canvas').getContext('2d');
+    
+    if (gameState === 'SELECT_CARD' && i === selectedCardIndex && i < 3) {
+      cardEl.className = `card selected-p${currentPlayer}`;
+    } else {
+      cardEl.className = 'card';
+    }
+
+    cctx.filter = 'none';
+    cctx.fillStyle = "#18181c";
+    cctx.fillRect(0, 0, 60, 60);
+
+    if (sharedHand[i]) {
+      const isQueued = (i === 3 || i === 4);
+      const alpha = isQueued ? 0.2 : 1.0;
+      cctx.filter = isQueued ? 'grayscale(80%)' : 'none';
+      drawMatrixToCanvas(cctx, sharedHand[i].matrix, sharedHand[i].color, 30, 30, 11, alpha, true);
+      cctx.filter = 'none';
+    }
+  }
+}
+
+function drawTileRun(ctx, cx, cy, angle, count, tileSize, vertical) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const half = tileSize / 2;
+
+  for (let i = 0; i < count; i++) {
+    const offset = (i - (count - 1) / 2) * tileSize;
+    const localX = vertical ? 0 : offset;
+    const localY = vertical ? offset : 0;
+
+    const corners = [
+      { x: -half, y: -half }, { x: half, y: -half },
+      { x: half, y: half }, { x: -half, y: half }
+    ];
+
+    ctx.beginPath();
+    corners.forEach((corner, idx) => {
+      const lx = localX + corner.x;
+      const ly = localY + corner.y;
+      const wx = cx + lx * cos - ly * sin;
+      const wy = cy + lx * sin + ly * cos;
+      if (idx === 0) ctx.moveTo(wx, wy); else ctx.lineTo(wx, wy);
+    });
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+}
+
+function drawTiledBody(ctx, body) {
+  const { rows, cols, tileSize } = body.tileGrid;
+  const isHorizontal = rows === 1;
+  const count = isHorizontal ? cols : rows;
+  drawTileRun(ctx, body.position.x, body.position.y, body.angle, count, tileSize, !isHorizontal);
+}
+
+function drawMatrixToCanvas(targetCtx, matrix, color, centerX, centerY, tileSize, alpha = 1.0, isCard = false) {
+  const rows = matrix.length;
+  const cols = matrix[0].length;
+  const width = cols * tileSize;
+  const height = rows * tileSize;
+  const startX = centerX - width / 2;
+  const startY = centerY - height / 2;
+
+  targetCtx.save();
+  targetCtx.globalAlpha = alpha;
+  targetCtx.fillStyle = color;
+  targetCtx.strokeStyle = isCard ? '#27272a' : '#18181c';
+  targetCtx.lineWidth = 1;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (matrix[r][c] === 1) {
+        const x = startX + c * tileSize;
+        const y = startY + r * tileSize;
+        targetCtx.fillRect(x, y, tileSize - 1, tileSize - 1);
+        targetCtx.strokeRect(x, y, tileSize - 1, tileSize - 1);
+      }
+    }
+  }
+  targetCtx.restore();
+}
+
+function showTopRightTimer(val) {
+  const timerEl = document.getElementById('topRightTimer');
+  const valEl = document.getElementById('timerVal');
+  timerEl.classList.add('active');
+  valEl.innerText = val;
+}
+
+function hideTopRightTimer() {
+  const timerEl = document.getElementById('topRightTimer');
+  timerEl.classList.remove('active');
+}
+
+// 統一的輸入處理邏輯
+function handleGameInput(key) {
+  if (gameState === 'GAME_OVER' || gameState === 'DROP_WAIT') return;
+
+  if (gameState === 'SELECT_CARD') {
+    if (key === 'ARROWUP' || key === 'ARROWLEFT' || key === 'A') {
+      selectedCardIndex = (selectedCardIndex + 2) % 3;
+      renderHandCards();
+    } else if (key === 'ARROWDOWN' || key === 'ARROWRIGHT' || key === 'D') {
+      selectedCardIndex = (selectedCardIndex + 1) % 3;
+      renderHandCards();
+    } else if (key === 'E' || key === 'ENTER') {
+      const chosenIndex = selectedCardIndex;
+      activeShape = sharedHand[chosenIndex];
+      activeMatrix = JSON.parse(JSON.stringify(activeShape.matrix));
+      posX = snapToGrid(CANVAS_WIDTH / 2, activeMatrix[0].length);
+      updateSpawnY();
+      gameState = 'POSITIONING';
+      lastDropWarningMsg = '';
+
+      sharedHand[chosenIndex] = sharedHand[3];
+      sharedHand[3] = sharedHand[4];
+      sharedHand[4] = getRandomShape();
+
+      updateUI();
+      renderHandCards();
+    }
+  } else if (gameState === 'POSITIONING' || gameState === 'COUNTDOWN') {
+    if (gameState === 'POSITIONING') {
+      if (key === 'W') {
+        gameState = 'SELECT_CARD';
+        updateUI();
+        renderHandCards();
+        return;
+      }
+
+      if (key === 'ARROWLEFT' || key === 'A') {
+        const cols = activeMatrix[0].length;
+        const halfWidth = (cols * TILE_SIZE) / 2;
+        posX = Math.max(halfWidth + 6, posX - TILE_SIZE);
+        posX = snapToGrid(posX, cols);
+      } else if (key === 'ARROWRIGHT' || key === 'D') {
+        const cols = activeMatrix[0].length;
+        const halfWidth = (cols * TILE_SIZE) / 2;
+        posX = Math.min(CANVAS_WIDTH - halfWidth - 6, posX + TILE_SIZE);
+        posX = snapToGrid(posX, cols);
+      } else if (key === 'R') {
+        activeMatrix = rotateMatrixClockwise(activeMatrix);
+        posX = snapToGrid(posX, activeMatrix[0].length);
+        updateSpawnY();
+      } else if (key === 'E' || key === 'ENTER') {
+        gameState = 'COUNTDOWN';
+        countdownValue = 3;
+        updateUI();
+        countdownTimer = setInterval(() => {
+          countdownValue--;
+          if (countdownValue <= 0) {
+            clearInterval(countdownTimer);
+            dropCurrentBlock();
+          } else { updateUI(); }
+        }, 1000);
+      }
+    }
+  }
+}
+
+// 監聽鍵盤事件
+window.addEventListener('keydown', (e) => {
+  if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); return; }
+  const key = e.key.toUpperCase();
+
+  // 如果是 P2 玩家，將鍵盤操作發送給 P1
+  if (myRole === 'P2') {
+    if (currentPlayer === 2 && conn && conn.open) {
+      conn.send({ type: 'KEY_INPUT', key: key });
+    }
+    return;
+  }
+
+  // 如果是 P1 玩家，且輪到 P1，本地直接處理
+  if (myRole === 'P1' && currentPlayer === 1) {
+    handleGameInput(key);
+  }
+});
+
+function countCells(matrix) {
+  let count = 0;
+  for (const row of matrix) {
+    for (const cell of row) {
+      if (cell === 1) count++;
+    }
+  }
+  return count;
+}
+
+function dropCurrentBlock() {
+  gameState = 'DROP_WAIT';
+  hasTouched = false;
+  touchTime = 0;
+  stableSince = null;
+  stabilitySnapshot = null;
+  totalPlacementCount++;
+
+  const cellCount = countCells(activeMatrix);
+  playerScores[currentPlayer] += cellCount;
+  updateUI();
+
+  currentDroppedBody = createPhysicsBodyFromMatrix(posX, posY, activeMatrix, activeShape.color, false);
+  placedBodies.push(currentDroppedBody);
+}
+
+function processFallenBlocks() {
+  const fallen = [];
+  placedBodies = placedBodies.filter(b => {
+    if (b.position.y > CANVAS_HEIGHT + 30 || b.position.x < -80 || b.position.x > CANVAS_WIDTH + 80) {
+      fallen.push(b);
+      Composite.remove(engine.world, b);
+      return false;
+    }
+    return true;
+  });
+
+  if (fallen.length > 0) {
+    playerScores[currentPlayer] = Math.max(SCORE_LOSE, playerScores[currentPlayer] - fallen.length * 1);
+
+    if (gameState !== 'GAME_OVER' && playerScores[currentPlayer] <= SCORE_LOSE) {
+      const winner = currentPlayer === 1 ? 2 : 1;
+      endGame(`P${winner} 獲勝！`, `P${currentPlayer} 分數被扣到 0 分，宣告落敗！`);
+    } else {
+      lastDropWarningMsg = `⚠️ P${currentPlayer} 方塊掉落！(扣 1 分，剩餘 ${playerScores[currentPlayer]} 分)`;
+      updateUI();
+    }
+  }
+}
+
+function finishTurn() {
+  if (gameState === 'GAME_OVER') return;
+
+  hideTopRightTimer();
+  currentDroppedBody = null;
+  hasTouched = false;
+
+  if (getHighestY() <= 60) {
+    endGame('平局！', '雙方防守極為出色，積木塔已堆疊至頂端！');
+    return;
+  }
+
+  if (playerScores[currentPlayer] >= SCORE_WIN) {
+    endGame(`P${currentPlayer} 獲勝！`, `P${currentPlayer} 達成 ${SCORE_WIN} 分並成功穩定！`);
+    return;
+  }
+
+  currentPlayer = currentPlayer === 1 ? 2 : 1;
+  selectedCardIndex = 0;
+  gameState = 'SELECT_CARD';
+  updateUI();
+  renderHandCards();
+}
+
+function endGame(title, desc) {
+  gameState = 'GAME_OVER';
+  hideTopRightTimer();
+  document.getElementById('modalTitle').innerText = title;
+  document.getElementById('modalDesc').innerText = desc;
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function resetGame() { 
+  if (myRole === 'P1') initGame(); 
+}
+
+const PHYSICS_SUBSTEPS = 2;
+
+function renderLoop() {
+  // 房主 (P1) 負責物理運算與畫面廣播
+  if (myRole === 'P1') {
+    for (let i = 0; i < PHYSICS_SUBSTEPS; i++) {
+      Engine.update(engine, (1000 / 60) / PHYSICS_SUBSTEPS);
+    }
+
+    const MAX_SPEED = 18;
+    placedBodies.forEach(b => {
+      if (!b.isStatic) {
+        const speed = Math.hypot(b.velocity.x, b.velocity.y);
+        if (speed > MAX_SPEED) {
+          const scale = MAX_SPEED / speed;
+          Body.setVelocity(b, { x: b.velocity.x * scale, y: b.velocity.y * scale });
+        }
+      }
+    });
+
+    processFallenBlocks();
+
+    if (gameState === 'DROP_WAIT') {
+      if (!hasTouched) {
+        hideTopRightTimer();
+        if (currentDroppedBody && currentDroppedBody.position.y > CANVAS_HEIGHT + 30) {
+          finishTurn();
+        }
+      } else {
+        const elapsed = Date.now() - touchTime;
+        if (elapsed < 3000) {
+          hideTopRightTimer();
+          updateUI();
+          if (isStrictlyStationary()) finishTurn();
+        } else if (elapsed < 6000) {
+          const remainingSec = Math.max(1, Math.ceil((6000 - elapsed) / 1000));
+          showTopRightTimer(remainingSec);
+          updateUI();
+          if (isStrictlyStationary()) finishTurn();
+        } else {
+          finishTurn();
+        }
+      }
+    }
+
+    // 將 P1 計算好的最新狀態同步給 P2
+    broadcastState();
+  }
+
+  // --- 畫布繪製 ---
+  ctx.fillStyle = "#141417";
+  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+  ctx.save();
+  ctx.strokeStyle = '#b71c1c';
+  ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  ctx.moveTo(0, 60);
+  ctx.lineTo(CANVAS_WIDTH, 60);
+  ctx.stroke();
+  ctx.restore();
+
+  if (myRole === 'P1') {
+    // P1 渲染本地物理剛體
+    placedBodies.forEach(body => {
+      ctx.fillStyle = body.customColor || '#94a3b8';
+      ctx.strokeStyle = '#18181c'; 
+      ctx.lineWidth = 1;
+
+      if (body.tileGrid) {
+        drawTiledBody(ctx, body);
+        return;
+      }
+
+      body.parts.forEach((part, index) => {
+        if (index === 0 && body.parts.length > 1) return; 
+        if (part.tileCount) {
+          drawTileRun(ctx, part.position.x, part.position.y, body.angle, part.tileCount, TILE_SIZE, false);
+          return;
+        }
+        ctx.beginPath();
+        const vertices = part.vertices;
+        ctx.moveTo(vertices[0].x, vertices[0].y);
+        for (let j = 1; j < vertices.length; j++) { ctx.lineTo(vertices[j].x, vertices[j].y); }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      });
+    });
+  } else if (myRole === 'P2') {
+    // P2 渲染 P1 傳送過來的畫面快照
+    remoteBodies.forEach(body => {
+      ctx.fillStyle = body.color || '#94a3b8';
+      ctx.strokeStyle = '#18181c';
+      ctx.lineWidth = 1;
+
+      if (body.tileGrid) {
+        const isHorizontal = body.tileGrid.rows === 1;
+        const count = isHorizontal ? body.tileGrid.cols : body.tileGrid.rows;
+        drawTileRun(ctx, body.x, body.y, body.angle, count, TILE_SIZE, !isHorizontal);
+        return;
+      }
+
+      body.parts.forEach((part, index) => {
+        if (index === 0 && body.parts.length > 1) return;
+        if (part.tileCount) {
+          drawTileRun(ctx, part.x, part.y, body.angle, part.tileCount, TILE_SIZE, false);
+        } else if (part.vertices) {
+          ctx.beginPath();
+          ctx.moveTo(part.vertices[0].x, part.vertices[0].y);
+          for (let j = 1; j < part.vertices.length; j++) { ctx.lineTo(part.vertices[j].x, part.vertices[j].y); }
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+      });
+    });
+  }
+
+  // 繪製預覽/放置中的方塊影子
+  if ((gameState === 'POSITIONING' || gameState === 'COUNTDOWN') && activeMatrix) {
+    const alpha = gameState === 'COUNTDOWN' ? 0.9 : 0.6;
+    drawMatrixToCanvas(ctx, activeMatrix, activeShape.color, posX, posY, TILE_SIZE, alpha, false);
+
+    const cols = activeMatrix[0].length;
+    const rows = activeMatrix.length;
+    const halfWidth = (cols * TILE_SIZE) / 2;
+    const halfHeight = (rows * TILE_SIZE) / 2;
+    const leftX = posX - halfWidth;
+    const rightX = posX + halfWidth;
+    const lineStartY = posY + halfHeight;
+
+    ctx.save();
+    ctx.strokeStyle = '#333338';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(leftX, lineStartY);
+    ctx.lineTo(leftX, CANVAS_HEIGHT);
+    ctx.moveTo(rightX, lineStartY);
+    ctx.lineTo(rightX, CANVAS_HEIGHT);
+    ctx.stroke();
+    ctx.restore();
+
+    if (gameState === 'COUNTDOWN') {
+      ctx.save();
+      ctx.font = 'bold 28px sans-serif';
+      ctx.fillStyle = '#e2e8f0';
+      ctx.textAlign = 'center';
+      ctx.fillText(countdownValue, posX, posY - (activeMatrix.length * TILE_SIZE) / 2 - 12);
+      ctx.restore();
+    }
+  }
+
+  requestAnimationFrame(renderLoop);
+}
+
+requestAnimationFrame(renderLoop);
+</script>
+</body>
+</html>
