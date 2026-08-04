@@ -256,6 +256,7 @@ function broadcastState() {
     posX: roundNum(posX), posY: roundNum(posY), activeMatrix, activeShape, countdownValue,
     selectedCardIndex, lastDropWarningMsg,
     bodies: placedBodies.map(b => ({
+      id: b.id, // 讓 P2 端能在前後兩筆快照之間穩定比對「同一顆方塊」，才能做內插補間
       x: roundNum(b.position.x), y: roundNum(b.position.y), angle: Math.round(b.angle * 100) / 100,
       color: b.customColor, tileGrid: b.tileGrid,
       parts: b.parts.map(p => ({
@@ -268,6 +269,51 @@ function broadcastState() {
   try { conn.send({ type: 'SYNC', state: snapshot }); } catch (e) {}
 }
 
+// --- P2 端：物理搖晃內插補間 ---
+// 主機每約 33ms（2 個影格）廣播一次快照，P2 端刻意把畫面渲染的時間點往回拉一小段（INTERP_DELAY_MS），
+// 讓渲染當下永遠介於「已經收到的兩筆真實快照」之間，用線性內插畫出中間過渡的每一影格（60fps），
+// 而不需要做風險較高的「往未來外推」。犧牲一點點即時性（約 90ms）換取畫面絲滑度。
+let prevSnapshot = null; // { time, bodies }
+let currSnapshot = null; // { time, bodies }
+const INTERP_DELAY_MS = 90;
+
+const lerp = (a, b, t) => a + (b - a) * t;
+function lerpAngle(a, b, t) {
+  let diff = b - a;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  return a + diff * t;
+}
+
+function getInterpolatedBodies() {
+  if (!currSnapshot) return [];
+  if (!prevSnapshot) return currSnapshot.bodies;
+
+  const renderTime = performance.now() - INTERP_DELAY_MS;
+  if (renderTime <= prevSnapshot.time) return prevSnapshot.bodies;
+  if (renderTime >= currSnapshot.time) return currSnapshot.bodies; // 追不上最新資料時，直接顯示最新一筆，不做外推
+
+  const span = currSnapshot.time - prevSnapshot.time;
+  const t = span > 0 ? (renderTime - prevSnapshot.time) / span : 1;
+  const prevMap = new Map(prevSnapshot.bodies.map(b => [b.id, b]));
+
+  return currSnapshot.bodies.map(currBody => {
+    const prevBody = prevMap.get(currBody.id);
+    if (!prevBody) return currBody; // 剛出現的新方塊，沒有前一筆快照可以內插，直接顯示最新狀態
+    return {
+      ...currBody,
+      x: lerp(prevBody.x, currBody.x, t),
+      y: lerp(prevBody.y, currBody.y, t),
+      angle: lerpAngle(prevBody.angle, currBody.angle, t),
+      parts: currBody.parts.map((currPart, idx) => {
+        const prevPart = prevBody.parts[idx];
+        if (!prevPart) return currPart;
+        return { ...currPart, x: lerp(prevPart.x, currPart.x, t), y: lerp(prevPart.y, currPart.y, t) };
+      })
+    };
+  });
+}
+
 function applySyncedState(state) {
   gameState = state.gameState; currentPlayer = state.currentPlayer;
   playerDrops = state.playerDrops; sharedHand = state.sharedHand;
@@ -275,6 +321,8 @@ function applySyncedState(state) {
   activeShape = state.activeShape; countdownValue = state.countdownValue;
   selectedCardIndex = state.selectedCardIndex; lastDropWarningMsg = state.lastDropWarningMsg;
   remoteBodies = state.bodies;
+  prevSnapshot = currSnapshot;
+  currSnapshot = { time: performance.now(), bodies: state.bodies };
   updateUI(); renderHandCards();
   if (gameState === 'GAME_OVER') document.getElementById('modalOverlay').classList.add('active');
   else document.getElementById('modalOverlay').classList.remove('active');
@@ -486,6 +534,31 @@ function handleGameInput(key) {
   }
 }
 
+// --- P2 端：客戶端預測 ---
+// 「選手牌、左右移動、旋轉、取消」這幾個動作是純粹的格子/索引運算，不涉及亂數或物理，
+// P2 可以放心在本地立即套用一份預測結果（操作手感接近零延遲），同時仍把按鍵送給 P1 走一遍權威邏輯，
+// 之後主機廣播回來的狀態會自動覆蓋校正，兩邊算出來的結果理論上應該一致，不會有明顯的跳動修正。
+// 唯獨「E / Enter」不做預測：它會觸發亂數抽牌、啟動倒數計時器、甚至建立真正的物理方塊，
+// 這些都必須只由 P1 那份權威模擬執行一次，不能兩邊各做一次。
+function handleLocalPredictionInput(key) {
+  if (gameState === 'SELECT_CARD') {
+    if (key === 'ARROWUP' || key === 'ARROWLEFT' || key === 'A') { selectedCardIndex = (selectedCardIndex + 2) % 3; renderHandCards(); }
+    else if (key === 'ARROWDOWN' || key === 'ARROWRIGHT' || key === 'D') { selectedCardIndex = (selectedCardIndex + 1) % 3; renderHandCards(); }
+  } else if (gameState === 'POSITIONING') {
+    if (key === 'W') { gameState = 'SELECT_CARD'; renderHandCards(); }
+    else if (key === 'ARROWLEFT' || key === 'A') posX = snapToGrid(Math.max((activeMatrix[0].length * TILE_SIZE) / 2 + 6, posX - TILE_SIZE), activeMatrix[0].length);
+    else if (key === 'ARROWRIGHT' || key === 'D') posX = snapToGrid(Math.min(CANVAS_WIDTH - (activeMatrix[0].length * TILE_SIZE) / 2 - 6, posX + TILE_SIZE), activeMatrix[0].length);
+    else if (key === 'R') {
+      activeMatrix = rotateMatrixClockwise(activeMatrix);
+      posX = snapToGrid(posX, activeMatrix[0].length);
+      // 注意：這裡刻意不預測 posY（旋轉後的出生高度），因為它要依賴目前堆疊的真實高度，
+      // P2 本地並沒有在跑物理模擬、抓不到正確的堆疊資訊；posY 留給下一次主機廣播來校正即可，
+      // 落差通常在一個廣播週期內（約 30~60ms）就會被修正，不明顯。
+    }
+  }
+  drawFrame();
+}
+
 // 修正：加入 e.preventDefault 避免網頁捲動與干擾焦點
 window.addEventListener('keydown', (e) => {
   const keyStr = e.key.toUpperCase();
@@ -496,10 +569,13 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
   }
 
-  // P2 把指令送給 P1
+  // P2 把指令送給 P1，同時（除了 E/Enter）在本地立即做客戶端預測
   if (myRole === 'P2') {
     if (currentPlayer === 2 && conn) {
       try { conn.send({ type: 'KEY_INPUT', key: keyStr }); } catch (err) {}
+      if (keyStr !== 'E' && keyStr !== 'ENTER') {
+        handleLocalPredictionInput(keyStr);
+      }
     }
     return;
   }
@@ -554,7 +630,7 @@ function drawFrame() {
       });
     });
   } else if (myRole === 'P2') {
-    remoteBodies.forEach(body => {
+    getInterpolatedBodies().forEach(body => {
       ctx.fillStyle = body.color || '#94a3b8'; ctx.strokeStyle = '#18181c'; ctx.lineWidth = 1;
       if (body.tileGrid) { drawTileRun(ctx, body.x, body.y, body.angle, body.tileGrid.rows === 1 ? body.tileGrid.cols : body.tileGrid.rows, TILE_SIZE, body.tileGrid.rows !== 1); return; }
       body.parts.forEach((part, index) => {
