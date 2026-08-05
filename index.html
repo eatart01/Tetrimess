@@ -68,6 +68,47 @@
     /* 複製按鈕樣式 */
     .btn-copy { background: #3f3f46; color: #e2e8f0; border: 1px solid #52525b; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
     .btn-copy:hover { background: #52525b; color: #fff; }
+  #frictionTunePanel {
+    display: none;
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    background: #18181c;
+    border: 1px solid #3f3f46;
+    border-radius: 10px;
+    padding: 12px 14px;
+    z-index: 200;
+    width: 240px;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  #frictionTunePanel.active { display: block; }
+  #frictionTunePanel h4 { color: #cbd5e1; font-size: 0.8rem; margin-bottom: 8px; }
+  #frictionTunePanel label { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.75rem; color: #94a3b8; margin-bottom: 6px; }
+  #frictionTunePanel input {
+    width: 70px;
+    background: #0f0f12;
+    border: 1px solid #3f3f46;
+    color: #e2e8f0;
+    border-radius: 6px;
+    padding: 3px 6px;
+    font-size: 0.8rem;
+    text-align: right;
+  }
+  #frictionTunePanel .tune-hint { font-size: 0.65rem; color: #52525b; margin-top: 6px; line-height: 1.4; }
+  #frictionTunePanel .tune-buttons { display: flex; gap: 8px; margin-top: 10px; }
+  .btn-tune.active-toggle { background: #059669; border-color: #047857; color: #fff; }
+  .btn-tune {
+    flex: 1;
+    background: #3f3f46;
+    color: #e2e8f0;
+    border: 1px solid #52525b;
+    border-radius: 6px;
+    padding: 6px 4px;
+    font-size: 0.7rem;
+    cursor: pointer;
+  }
+  .btn-tune:hover { background: #52525b; }
   </style>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
@@ -153,7 +194,7 @@ const WORKER_SOURCE = `
     postMessage({ type: 'ERROR', message: 'Matter.js 載入後 Matter 物件不存在（可能被瀏覽器安全政策擋下）' });
   }
 
-  const TILE_SIZE = 24, CANVAS_WIDTH = 440, CANVAS_HEIGHT = 600, INITIAL_BASE_Y = CANVAS_HEIGHT - (1.5 * TILE_SIZE);
+  const TILE_SIZE = 24, CANVAS_WIDTH = 440, CANVAS_HEIGHT = 600, INITIAL_BASE_Y = CANVAS_HEIGHT - (2 * TILE_SIZE);
 
   const SHAPES_DATABASE = [
     { name: 'I', color: '#8ca1ab', matrix: [[1,1,1,1]] }, { name: 'O', color: '#af9a92', matrix: [[1,1],[1,1]] },
@@ -168,10 +209,18 @@ const WORKER_SOURCE = `
 
   const ADVANCED_SHAPE_NAMES = ['L', 'Plus', 'LongL']; const ADVANCED_SHAPE_UNLOCK_COUNT = 15; let totalPlacementCount = 0;
   const I_SHAPE_MIN_GAP = 5; let drawCount = 0; let lastIDrawnAt = -Infinity;
-  const DOT_PAIR_TRIGGER_WEIGHT = 1.3; const DOT_PAIR_MIN_GAP = 6; let pendingDotCount = 0; let lastDotPairTriggerAt = -Infinity;
+  const DOT_PAIR_TRIGGER_WEIGHT = 1.3; const DOT_PAIR_MIN_GAP = 6; let pendingDotCount = 0;
+  let drawsSinceLastDotPair = Infinity; // 距離上一組單一格結束後，已經抽了幾次「其他形狀」（不含Dot本身）
 
   const { Engine, Bodies, Composite, Body, Events } = Matter;
   const engine = Engine.create({ positionIterations: 18, velocityIterations: 18, enableSleeping: false, gravity: { x: 0, y: 1.2, scale: 0.001 } });
+
+  // 可動態調整的摩擦力數值（供除錯調校模式即時修改，一般模式維持這組預設值不變）
+  let baseFriction = 1.81, baseFrictionStatic = 2.21, blockFriction = 1.26, blockFrictionStatic = 1.46;
+  let sharedFrictionAir = 0.06; // 真正控制晃動收斂速度的參數（同時作用在線速度與角速度）
+  let sharedDensity = 0.002; // 質量密度：影響正向力、摩擦力絕對值，也影響轉動慣量（雙面刃，效果方向不一定）
+  let physicsSubsteps = 2; // 每個畫面幀拆成幾次更小步長運算，越高數值積分越精細
+  let forcedShape = null; // 測試用：非null時，抽牌一律固定回傳這個形狀
 
   let currentPlayer = 1, gameState = 'SELECT_CARD', playerDrops = { 1: 0, 2: 0 }, lastDropWarningMsg = '';
   let sharedHand = [], selectedCardIndex = 0, activeShape = null, activeMatrix = null;
@@ -197,16 +246,23 @@ const WORKER_SOURCE = `
 
   function getRandomShape() {
     drawCount++;
-    if (pendingDotCount > 0) { pendingDotCount--; return cloneShape(SHAPES_DATABASE.find(s => s.name === 'Dot')); }
+    if (forcedShape) return cloneShape(forcedShape);
+    if (pendingDotCount > 0) {
+      pendingDotCount--;
+      if (pendingDotCount === 0) drawsSinceLastDotPair = 0; // 這一張是這一組的第二張，成對結束，重新起算間隔
+      return cloneShape(SHAPES_DATABASE.find(s => s.name === 'Dot'));
+    }
     let normalPool = (totalPlacementCount >= ADVANCED_SHAPE_UNLOCK_COUNT ? SHAPES_DATABASE : SHAPES_DATABASE.filter(s => !ADVANCED_SHAPE_NAMES.includes(s.name))).filter(s => s.name !== 'Dot');
     if (drawCount - lastIDrawnAt < I_SHAPE_MIN_GAP) normalPool = normalPool.filter(s => s.name !== 'I');
-    const dotPairAvailable = (drawCount - lastDotPairTriggerAt) >= DOT_PAIR_MIN_GAP;
+    const dotPairAvailable = drawsSinceLastDotPair >= DOT_PAIR_MIN_GAP;
     const totalWeight = normalPool.length + (dotPairAvailable ? DOT_PAIR_TRIGGER_WEIGHT : 0);
     let roll = Math.random() * totalWeight;
-    if (dotPairAvailable && roll < DOT_PAIR_TRIGGER_WEIGHT) { lastDotPairTriggerAt = drawCount; pendingDotCount = 1; return cloneShape(SHAPES_DATABASE.find(s => s.name === 'Dot')); }
+    if (dotPairAvailable && roll < DOT_PAIR_TRIGGER_WEIGHT) { pendingDotCount = 1; return cloneShape(SHAPES_DATABASE.find(s => s.name === 'Dot')); }
     roll -= dotPairAvailable ? DOT_PAIR_TRIGGER_WEIGHT : 0;
     const template = normalPool[Math.min(normalPool.length - 1, Math.floor(roll))];
-    if (template.name === 'I') lastIDrawnAt = drawCount; return cloneShape(template);
+    if (template.name === 'I') lastIDrawnAt = drawCount;
+    drawsSinceLastDotPair++;
+    return cloneShape(template);
   }
 
   function rotateMatrixClockwise(matrix) {
@@ -239,11 +295,17 @@ const WORKER_SOURCE = `
 
   function createPhysicsBodyFromMatrix(x, y, matrix, color, isStatic = false) {
     const rows = matrix.length; const cols = matrix[0].length;
+    // 底座（isStatic）摩擦力大幅提升；一般方塊（含直條類方塊）維持極輕微加強
+    const fr = isStatic ? baseFriction : blockFriction;
+    const frS = isStatic ? baseFrictionStatic : blockFrictionStatic;
     if (isStraightLineMatrix(matrix)) {
-      const body = Bodies.rectangle(x, y, cols * TILE_SIZE, rows * TILE_SIZE, { isStatic, friction: 1.2, frictionStatic: 1.4, frictionAir: 0.06, restitution: 0, density: 0.002 });
+      const body = Bodies.rectangle(x, y, cols * TILE_SIZE, rows * TILE_SIZE, { isStatic, friction: fr, frictionStatic: frS, frictionAir: sharedFrictionAir, restitution: 0, density: sharedDensity });
       body.customColor = color; body.tileGrid = { rows, cols, tileSize: TILE_SIZE }; Composite.add(engine.world, body); return body;
     }
     const parts = []; const offsetX = (cols * TILE_SIZE) / 2; const offsetY = (rows * TILE_SIZE) / 2;
+
+    // 【橫向合併，優先權最高，維持原本邏輯完全不變】逐列處理，跟之前的版本一模一樣，
+    // 確保 T/L/J/O/S/Z/Plus/U/BigCorner 這些已經調好的形狀行為不受影響。
     for (let r = 0; r < rows; r++) {
       let c = 0;
       while (c < cols) {
@@ -251,20 +313,51 @@ const WORKER_SOURCE = `
           const runStart = c; while (c < cols && matrix[r][c] === 1) c++;
           const runLength = c - runStart; const runWidth = runLength * TILE_SIZE;
           const box = Bodies.rectangle(x + (runStart * TILE_SIZE + runWidth / 2) - offsetX, y + (r * TILE_SIZE + TILE_SIZE / 2) - offsetY, runWidth, TILE_SIZE, {});
-          box.tileCount = runLength; parts.push(box);
+          box.tileCount = runLength; box.__row = r; box.__col = runStart; parts.push(box);
         } else c++;
       }
     }
-    const compoundBody = Body.create({ parts, isStatic, friction: 1.2, frictionStatic: 1.4, frictionAir: 0.06, restitution: 0, density: 0.002 });
+
+    // 【縱向合併，事後補強】只找「橫向合併後仍然是孤立單格（tileCount===1）、同一欄、列數連續」的部件，
+    // 合併成一顆縱向長條（例如 LongL 那根 3 格高的柱子）。不限制列的位置（含最底部那一列也會考慮），
+    // 因為只挑「本來就沒被橫向合併吃掉的孤立單格」這個條件本身就足夠保護 Plus/BigCorner 這種
+    // 原本就該橫向合併成寬部件的結構了（寬部件 tileCount>=2，不會被這裡挑中）。
+    const singleCellsByCol = {};
+    parts.forEach(p => {
+      if (p.tileCount === 1) {
+        (singleCellsByCol[p.__col] = singleCellsByCol[p.__col] || []).push(p);
+      }
+    });
+    const removeSet = new Set();
+    const verticalParts = [];
+    Object.values(singleCellsByCol).forEach(list => {
+      list.sort((a, b) => a.__row - b.__row);
+      let i = 0;
+      while (i < list.length) {
+        let j = i;
+        while (j + 1 < list.length && list[j + 1].__row === list[j].__row + 1) j++;
+        const runLen = j - i + 1;
+        if (runLen >= 2) {
+          const first = list[i], last = list[j];
+          const vbox = Bodies.rectangle(first.position.x, (first.position.y + last.position.y) / 2, TILE_SIZE, runLen * TILE_SIZE, {});
+          vbox.tileCount = runLen; vbox.vertical = true; verticalParts.push(vbox);
+          for (let k = i; k <= j; k++) removeSet.add(list[k]);
+        }
+        i = j + 1;
+      }
+    });
+    const finalParts = parts.filter(p => !removeSet.has(p)).concat(verticalParts);
+
+    const compoundBody = Body.create({ parts: finalParts, isStatic, friction: fr, frictionStatic: frS, frictionAir: sharedFrictionAir, restitution: 0, density: sharedDensity });
     Body.setPosition(compoundBody, { x, y }); compoundBody.customColor = color; Composite.add(engine.world, compoundBody); return compoundBody;
   }
 
   function initGame() {
     placedBodies.forEach(b => Composite.remove(engine.world, b)); placedBodies = [];
-    currentPlayer = 1; playerDrops = { 1: 0, 2: 0 }; lastDropWarningMsg = ''; gameState = 'SELECT_CARD'; selectedCardIndex = 0; currentDroppedBody = null; hasTouched = false; stableSince = null; stabilitySnapshot = null; totalPlacementCount = 0; drawCount = 0; lastIDrawnAt = -Infinity; pendingDotCount = 0; lastDotPairTriggerAt = -Infinity;
+    currentPlayer = 1; playerDrops = { 1: 0, 2: 0 }; lastDropWarningMsg = ''; gameState = 'SELECT_CARD'; selectedCardIndex = 0; currentDroppedBody = null; hasTouched = false; stableSince = null; stabilitySnapshot = null; totalPlacementCount = 0; drawCount = 0; lastIDrawnAt = -Infinity; pendingDotCount = 0; drawsSinceLastDotPair = Infinity;
     modalTitle = ''; modalDesc = '';
     sharedHand = [getRandomShape(), getRandomShape(), getRandomShape(), getRandomShape(), getRandomShape()];
-    const initialBaseBody = createPhysicsBodyFromMatrix(CANVAS_WIDTH / 2, INITIAL_BASE_Y, [[1,1,1,1,1,1,1,1,1,1,1,1,1,1]], '#546e7a', true);
+    const initialBaseBody = createPhysicsBodyFromMatrix(CANVAS_WIDTH / 2, INITIAL_BASE_Y, [[1,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1]], '#546e7a', true);
     placedBodies.push(initialBaseBody);
   }
 
@@ -314,9 +407,8 @@ const WORKER_SOURCE = `
     }
   }
 
-  const PHYSICS_SUBSTEPS = 2;
   function tick() {
-    for (let i = 0; i < PHYSICS_SUBSTEPS; i++) Engine.update(engine, (1000 / 60) / PHYSICS_SUBSTEPS);
+    for (let i = 0; i < physicsSubsteps; i++) Engine.update(engine, (1000 / 60) / physicsSubsteps);
     placedBodies.forEach(b => { if (!b.isStatic) { const s = Math.hypot(b.velocity.x, b.velocity.y); if (s > 18) Body.setVelocity(b, { x: b.velocity.x * 18 / s, y: b.velocity.y * 18 / s }); } });
     processFallenBlocks();
 
@@ -340,7 +432,7 @@ const WORKER_SOURCE = `
         angle: Math.round(b.angle * 100) / 100, color: b.customColor, tileGrid: b.tileGrid,
         parts: b.parts.map(p => ({
           x: Math.round(p.position.x * 10) / 10, y: Math.round(p.position.y * 10) / 10,
-          tileCount: p.tileCount,
+          tileCount: p.tileCount, vertical: !!p.vertical,
           vertices: p.vertices.map(v => ({ x: Math.round(v.x * 10) / 10, y: Math.round(v.y * 10) / 10 }))
         }))
       }))
@@ -351,6 +443,35 @@ const WORKER_SOURCE = `
     const msg = e.data;
     if (msg.type === 'INIT') initGame();
     else if (msg.type === 'KEY') handleGameInput(msg.key);
+    else if (msg.type === 'SET_FRICTION') {
+      baseFriction = msg.baseFriction; baseFrictionStatic = msg.baseFrictionStatic;
+      blockFriction = msg.blockFriction; blockFrictionStatic = msg.blockFrictionStatic;
+      sharedFrictionAir = msg.frictionAir;
+      sharedDensity = msg.density;
+      physicsSubsteps = Math.max(1, Math.round(msg.substeps));
+      engine.gravity.y = msg.gravity;
+      // 即時套用到場上「目前已經存在」的方塊，方便調校時馬上看到效果，不用等重新開始
+      placedBodies.forEach(b => {
+        b.friction = b.isStatic ? baseFriction : blockFriction;
+        b.frictionStatic = b.isStatic ? baseFrictionStatic : blockFrictionStatic;
+        b.frictionAir = sharedFrictionAir;
+        Body.setDensity(b, sharedDensity); // density 要用 Body.setDensity 才會連帶重算質量/轉動慣量
+      });
+    }
+    else if (msg.type === 'SET_FORCED_SHAPE') {
+      forcedShape = msg.shape; // null = 恢復正常隨機抽牌；否則之後每次抽牌都固定回傳這個形狀
+      if (forcedShape) {
+        for (let i = 0; i < sharedHand.length; i++) sharedHand[i] = cloneShape(forcedShape);
+      }
+    }
+    else if (msg.type === 'REFRESH_HAND') {
+      // 只重抽目前可選的前三張，候補的兩張（索引3、4）維持不變
+      if (sharedHand.length >= 3) {
+        sharedHand[0] = getRandomShape();
+        sharedHand[1] = getRandomShape();
+        sharedHand[2] = getRandomShape();
+      }
+    }
   };
 
   setInterval(tick, 1000 / 60); // 用 setInterval 驅動，不受分頁可見性節流影響
@@ -475,9 +596,77 @@ function createRoom() {
   });
 }
 
+let isSoloTestMode = false;
+
+function enterSoloTestMode() {
+  isSoloTestMode = true;
+  myRole = 'P1';
+  createPhysicsWorker();
+  document.getElementById('lobbyOverlay').classList.remove('active');
+  document.getElementById('p1Title').innerText = '玩家 P1 (單機測試)';
+  document.getElementById('p2Title').innerText = '玩家 P2 (單機測試)';
+  physicsWorker.postMessage({ type: 'INIT' });
+}
+
+// 摩擦力調校模式的開關：以後想關閉這個通道，把這裡改成 false 即可，不用刪程式碼
+const FRICTION_TUNING_MODE_ENABLED = true;
+
+function sendFrictionToWorker() {
+  if (!physicsWorker) return;
+  physicsWorker.postMessage({
+    type: 'SET_FRICTION',
+    baseFriction: parseFloat(document.getElementById('tuneBaseFriction').value) || 0,
+    baseFrictionStatic: parseFloat(document.getElementById('tuneBaseFrictionStatic').value) || 0,
+    blockFriction: parseFloat(document.getElementById('tuneBlockFriction').value) || 0,
+    blockFrictionStatic: parseFloat(document.getElementById('tuneBlockFrictionStatic').value) || 0,
+    frictionAir: parseFloat(document.getElementById('tuneFrictionAir').value) || 0,
+    gravity: parseFloat(document.getElementById('tuneGravity').value) || 0,
+    density: parseFloat(document.getElementById('tuneDensity').value) || 0,
+    substeps: parseInt(document.getElementById('tuneSubsteps').value) || 1
+  });
+}
+
+function refreshHandCards_Dev() {
+  if (physicsWorker) physicsWorker.postMessage({ type: 'REFRESH_HAND' });
+}
+
+let jTestForced = false;
+function toggleJTestMode() {
+  jTestForced = !jTestForced;
+  const btn = document.getElementById('btnJTest');
+  if (jTestForced) {
+    btn.innerText = '✅ J型測試中（點擊關閉）';
+    btn.classList.add('active-toggle');
+    if (physicsWorker) physicsWorker.postMessage({ type: 'SET_FORCED_SHAPE', shape: { name: 'J', color: '#78909c', matrix: [[1, 1], [1, 0], [1, 0]] } });
+  } else {
+    btn.innerText = '🧪 強制全部變J型(高3寬2)';
+    btn.classList.remove('active-toggle');
+    if (physicsWorker) physicsWorker.postMessage({ type: 'SET_FORCED_SHAPE', shape: null });
+  }
+}
+
+function enterFrictionTuningMode() {
+  isSoloTestMode = true;
+  myRole = 'P1';
+  createPhysicsWorker();
+  document.getElementById('lobbyOverlay').classList.remove('active');
+  document.getElementById('p1Title').innerText = '玩家 P1 (摩擦力調校)';
+  document.getElementById('p2Title').innerText = '玩家 P2 (摩擦力調校)';
+  document.getElementById('frictionTunePanel').classList.add('active');
+  physicsWorker.postMessage({ type: 'INIT' });
+  // 進場先把目前預設值送一次，確保跟畫面上輸入框顯示的一致
+  sendFrictionToWorker();
+}
+
 function joinRoom() {
   document.activeElement.blur();
   const targetId = document.getElementById('roomInput').value.trim();
+  if (targetId === '12345') { enterSoloTestMode(); return; }
+  if (targetId === '23456') {
+    if (!FRICTION_TUNING_MODE_ENABLED) { alert('這個測試模式目前未開放'); return; }
+    enterFrictionTuningMode();
+    return;
+  }
   if (!targetId) return alert('請輸入房間 ID');
 
   peer = new Peer();
@@ -729,6 +918,12 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
   }
 
+  // 單機測試模式：不用連線，兩位玩家的回合都直接由同一個鍵盤操作
+  if (isSoloTestMode) {
+    if (physicsWorker) physicsWorker.postMessage({ type: 'KEY', key: keyStr });
+    return;
+  }
+
   // P2 把指令送給 P1，同時（除了 E/Enter）在本地立即做客戶端預測
   if (myRole === 'P2') {
     if (currentPlayer === 2 && conn) {
@@ -760,7 +955,7 @@ function drawFrame() {
     if (body.tileGrid) { drawTileRun(ctx, body.x, body.y, body.angle, body.tileGrid.rows === 1 ? body.tileGrid.cols : body.tileGrid.rows, TILE_SIZE, body.tileGrid.rows !== 1); return; }
     body.parts.forEach((part, index) => {
       if (index === 0 && body.parts.length > 1) return;
-      if (part.tileCount) drawTileRun(ctx, part.x, part.y, body.angle, part.tileCount, TILE_SIZE, false);
+      if (part.tileCount) drawTileRun(ctx, part.x, part.y, body.angle, part.tileCount, TILE_SIZE, !!part.vertical);
       else if (part.vertices) {
         ctx.beginPath(); ctx.moveTo(part.vertices[0].x, part.vertices[0].y);
         for (let j = 1; j < part.vertices.length; j++) ctx.lineTo(part.vertices[j].x, part.vertices[j].y);
@@ -772,7 +967,11 @@ function drawFrame() {
   if ((gameState === 'POSITIONING' || gameState === 'COUNTDOWN') && activeMatrix) {
     drawMatrixToCanvas(ctx, activeMatrix, activeShape.color, posX, posY, TILE_SIZE, gameState === 'COUNTDOWN' ? 0.9 : 0.6, false);
     const halfWidth = (activeMatrix[0].length * TILE_SIZE) / 2; const lineStartY = posY + (activeMatrix.length * TILE_SIZE) / 2;
-    ctx.save(); ctx.strokeStyle = '#333338'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(posX - halfWidth, lineStartY); ctx.lineTo(posX - halfWidth, CANVAS_HEIGHT); ctx.moveTo(posX + halfWidth, lineStartY); ctx.lineTo(posX + halfWidth, CANVAS_HEIGHT); ctx.stroke(); ctx.restore();
+    ctx.save(); ctx.strokeStyle = '#5c5c60'; ctx.setLineDash([4, 4]); ctx.beginPath();
+    ctx.moveTo(posX - halfWidth, lineStartY); ctx.lineTo(posX - halfWidth, CANVAS_HEIGHT);
+    ctx.moveTo(posX, lineStartY); ctx.lineTo(posX, CANVAS_HEIGHT);
+    ctx.moveTo(posX + halfWidth, lineStartY); ctx.lineTo(posX + halfWidth, CANVAS_HEIGHT);
+    ctx.stroke(); ctx.restore();
     if (gameState === 'COUNTDOWN') { ctx.save(); ctx.font = 'bold 28px sans-serif'; ctx.fillStyle = '#e2e8f0'; ctx.textAlign = 'center'; ctx.fillText(countdownValue, posX, posY - (activeMatrix.length * TILE_SIZE) / 2 - 12); ctx.restore(); }
   }
 }
@@ -786,6 +985,37 @@ function renderLoop() {
 }
 
 requestAnimationFrame(renderLoop);
+</script>
+
+<div id="frictionTunePanel">
+  <h4>物理參數調校（測試模式）</h4>
+  <label>底座 friction <input type="number" step="0.01" id="tuneBaseFriction" value="1.8"></label>
+  <label>底座 frictionStatic <input type="number" step="0.01" id="tuneBaseFrictionStatic" value="1.8"></label>
+  <label>方塊 friction <input type="number" step="0.01" id="tuneBlockFriction" value="1.8"></label>
+  <label>方塊 frictionStatic <input type="number" step="0.01" id="tuneBlockFrictionStatic" value="1.8"></label>
+  <label>frictionAir（收斂速度） <input type="number" step="0.01" id="tuneFrictionAir" value="0.06"></label>
+  <div class="tune-hint">frictionAir 越大，晃動收斂越快，但太大會讓真正該倒的動作看起來不自然變慢（超過約0.2容易出現凍結假象）</div>
+  <label>重力 gravity.y <input type="number" step="0.1" id="tuneGravity" value="1.2"></label>
+  <div class="tune-hint">重力越大，翻轉力矩累積越快，但掉落速度與衝擊力道也會變大</div>
+  <label>質量密度 density <input type="number" step="0.0005" id="tuneDensity" value="0.002"></label>
+  <div class="tune-hint">雙面刃：正向力/摩擦力絕對值變大，但轉動慣量也變大，效果方向不一定，需實測</div>
+  <label>物理子步進 substeps <input type="number" step="1" min="1" id="tuneSubsteps" value="2"></label>
+  <div class="tune-hint">越高數值積分越精細，主要影響精確度，不一定加快收斂</div>
+  <div class="tune-hint">點輸入框、打數字、按 Enter 或點別處套用；會立即影響場上目前所有方塊</div>
+  <div class="tune-buttons">
+    <button class="btn-tune" onclick="refreshHandCards_Dev()">🔄 刷新前三張手牌</button>
+    <button class="btn-tune" onclick="resetGame()">♻️ 重新開始</button>
+  </div>
+  <div class="tune-buttons">
+    <button class="btn-tune" id="btnJTest" onclick="toggleJTestMode()">🧪 強制全部變J型(高3寬2)</button>
+  </div>
+</div>
+<script>
+  ['tuneBaseFriction', 'tuneBaseFrictionStatic', 'tuneBlockFriction', 'tuneBlockFrictionStatic', 'tuneFrictionAir', 'tuneGravity', 'tuneDensity', 'tuneSubsteps'].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('change', sendFrictionToWorker);
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { el.blur(); } e.stopPropagation(); });
+  });
 </script>
 </body>
 </html>
