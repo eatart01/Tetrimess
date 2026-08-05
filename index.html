@@ -382,6 +382,7 @@ function createPhysicsWorker() {
     sharedHand = s.sharedHand; activeMatrix = s.activeMatrix; activeShape = s.activeShape;
     posX = s.posX; posY = s.posY; countdownValue = s.countdownValue; selectedCardIndex = s.selectedCardIndex;
     lastDropWarningMsg = s.lastDropWarningMsg; hasTouched = s.hasTouched; touchTime = s.touchTime;
+    modalTitle = s.modalTitle; modalDesc = s.modalDesc;
     localBodies = s.bodies;
 
     if (gameState === 'GAME_OVER') showModal(s.modalTitle, s.modalDesc);
@@ -496,6 +497,7 @@ function joinRoom() {
 
 function setupConnection() {
   conn.on('open', () => {
+    console.log('[診斷] conn.on(open) 已觸發，myRole=' + myRole);
     if (document.activeElement) document.activeElement.blur();
     document.getElementById('lobbyOverlay').classList.remove('active');
     document.getElementById('p1Title').innerText = myRole === 'P1' ? '玩家 P1 (你)' : '玩家 P1 (藍)';
@@ -503,13 +505,26 @@ function setupConnection() {
     if (myRole === 'P2') document.getElementById('btnRestart').style.display = 'none';
   });
 
+  conn.on('error', (err) => {
+    console.error('[診斷] conn 發生錯誤:', err);
+  });
+
+  conn.on('close', () => {
+    console.warn('[診斷] conn 已關閉');
+  });
+
   conn.on('data', (data) => {
-    if (myRole === 'P1') {
-      if (data.type === 'KEY_INPUT' && currentPlayer === 2 && physicsWorker) {
-        physicsWorker.postMessage({ type: 'KEY', key: data.key });
+    console.log('[診斷] conn.on(data) 收到資料，myRole=' + myRole + '，type=' + data.type);
+    try {
+      if (myRole === 'P1') {
+        if (data.type === 'KEY_INPUT' && currentPlayer === 2 && physicsWorker) {
+          physicsWorker.postMessage({ type: 'KEY', key: data.key });
+        }
+      } else if (myRole === 'P2') {
+        if (data.type === 'SYNC') applySyncedState(data.state);
       }
-    } else if (myRole === 'P2') {
-      if (data.type === 'SYNC') applySyncedState(data.state);
+    } catch (err) {
+      console.error('[診斷] 處理收到的資料時發生例外:', err);
     }
   });
 }
@@ -517,6 +532,7 @@ function setupConnection() {
 // 壓縮浮點數，解決網路塞車與延遲問題
 const roundNum = (num) => Math.round(num * 10) / 10;
 
+let broadcastLogCount = 0;
 function broadcastState() {
   if (myRole !== 'P1' || !conn) return;
   const snapshot = {
@@ -525,6 +541,10 @@ function broadcastState() {
     selectedCardIndex, lastDropWarningMsg, hasTouched, touchTime, modalTitle, modalDesc,
     bodies: localBodies // Worker 傳回來時已經序列化、四捨五入過了，直接轉發即可
   };
+  broadcastLogCount++;
+  if (broadcastLogCount <= 5 || broadcastLogCount % 60 === 0) {
+    console.log('[診斷] broadcastState 第' + broadcastLogCount + '次，conn.open=' + conn.open + '，gameState=' + gameState + '，bodies數=' + localBodies.length);
+  }
   try { conn.send({ type: 'SYNC', state: snapshot }); } catch (e) { console.error('廣播失敗:', e); }
 }
 
@@ -602,6 +622,7 @@ let gameState = 'SELECT_CARD', currentPlayer = 1, playerDrops = { 1: 0, 2: 0 }, 
 let sharedHand = [], selectedCardIndex = 0, activeShape = null, activeMatrix = null;
 let posX = CANVAS_WIDTH / 2, posY = 200, countdownValue = 3;
 let hasTouched = false, touchTime = 0;
+let modalTitle = '', modalDesc = ''; // 修正：之前沒宣告，導致意外抓到同名的 <div id="modalTitle"> DOM 元素
 let localBodies = []; // P1 端：從 Worker 鏡像過來的方塊列表
 
 function snapToGrid(px, cols) { const hw = (cols * TILE_SIZE) / 2; const le = px - hw; const sle = BASE_LEFT_X + Math.round((le - BASE_LEFT_X) / TILE_SIZE) * TILE_SIZE; return sle + hw; }
