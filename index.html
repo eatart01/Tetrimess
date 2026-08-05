@@ -143,7 +143,15 @@
 // 也不受節流影響，這是整個架構能撐過分頁被蓋住的關鍵。
 // =========================================================================
 const WORKER_SOURCE = `
-  importScripts('https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js');
+  try {
+    importScripts('https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js');
+  } catch (err) {
+    postMessage({ type: 'ERROR', message: 'importScripts 載入 Matter.js 失敗: ' + err.message });
+    throw err;
+  }
+  if (typeof Matter === 'undefined') {
+    postMessage({ type: 'ERROR', message: 'Matter.js 載入後 Matter 物件不存在（可能被瀏覽器安全政策擋下）' });
+  }
 
   const TILE_SIZE = 24, CANVAS_WIDTH = 440, CANVAS_HEIGHT = 600, INITIAL_BASE_Y = CANVAS_HEIGHT - (1.5 * TILE_SIZE);
 
@@ -354,7 +362,20 @@ let workerMsgCount = 0;
 function createPhysicsWorker() {
   const blob = new Blob([WORKER_SOURCE], { type: 'application/javascript' });
   physicsWorker = new Worker(URL.createObjectURL(blob));
+
+  // 標準 Worker API：Worker 內任何沒被 try/catch 接住的例外，都會觸發這裡，
+  // 這是排查「Worker 完全沒反應」這種問題最直接的管道。
+  physicsWorker.onerror = (e) => {
+    console.error('Worker 發生錯誤:', e.message, e);
+    alert('Worker 初始化失敗，請截圖瀏覽器主控台(F12)的錯誤訊息回報：\n' + e.message);
+  };
+
   physicsWorker.onmessage = (e) => {
+    if (e.data.type === 'ERROR') {
+      console.error('[Worker回報錯誤]', e.data.message);
+      alert('Worker 內部發生錯誤，請截圖瀏覽器主控台(F12)的錯誤訊息回報：\n' + e.data.message);
+      return;
+    }
     if (e.data.type !== 'STATE') return;
     const s = e.data;
     gameState = s.gameState; currentPlayer = s.currentPlayer; playerDrops = s.playerDrops;
