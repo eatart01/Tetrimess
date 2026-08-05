@@ -120,7 +120,7 @@ function setupConnection() {
 }
 
 let broadcastCount = 0, rafTickCount = 0, receivedCount = 0;
-let remotePosX = CANVAS_WIDTH / 2, remoteShowPreview = false;
+let remotePosX = 150, remoteShowPreview = false;
 
 function broadcastState() {
   if (myRole !== 'P1' || !conn) return;
