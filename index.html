@@ -1,165 +1,340 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>背景節流測試版（Web Worker）</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-  body {
-    background-color: #0f0f12; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    color: #94a3b8; display: flex; align-items: center; justify-content: center;
-    height: 100vh; width: 100vw; overflow: hidden; flex-direction: column; gap: 12px;
-  }
-  .modal-overlay {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10,10,12,0.92);
-    display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100;
-  }
-  .modal-overlay.hidden { display: none; }
-  .title { font-size: 1.4rem; font-weight: 700; color: #f1f5f9; margin-bottom: 8px; }
-  .desc { font-size: 0.9rem; color: #94a3b8; margin-bottom: 16px; text-align: center; }
-  .btn { padding: 10px 20px; background: #4f46e5; color: #fff; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
-  .btn:hover { background: #4338ca; }
-  .btn.green { background: #059669; }
-  .btn.green:hover { background: #047857; }
-  .btn-copy { background: #3f3f46; color: #e2e8f0; border: 1px solid #52525b; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; }
-  .room-input { background: #18181c; border: 1px solid #3f3f46; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 0.9rem; outline: none; width: 160px; text-align: center; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>極簡 2D 雙人搖晃疊疊樂 - 線上連線版 (優化修正)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      background-color: #0f0f12;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #94a3b8;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      padding-top: 16px;
+    }
 
-  #statusText { font-size: 0.95rem; color: #cbd5e1; }
-  .badge { display: inline-block; background: #312e81; color: #c7d2fe; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; margin-left: 6px; }
-  .game-container { position: relative; background: #141417; border-radius: 10px; border: 1px solid #27272a; overflow: hidden; }
-  canvas { display: block; }
+    .layout-wrapper { display: flex; flex-direction: row; align-items: flex-start; justify-content: center; gap: 28px; max-height: 95vh; }
+    .side-panel { display: flex; flex-direction: column; gap: 14px; width: 250px; }
+    .center-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; }
 
-  #diagPanel {
-    width: 320px; background: #18181c; border: 1px dashed #3f3f46; border-radius: 8px; padding: 8px 10px;
-    font-size: 0.72rem; color: #818cf8; line-height: 1.6;
-  }
-  #diagPanel h4 { color: #cbd5e1; font-size: 0.75rem; margin-bottom: 4px; }
-  #diagLog { max-height: 100px; overflow-y: auto; font-family: monospace; color: #71717a; margin-top: 4px; border-top: 1px solid #27272a; padding-top: 4px; }
-  #diagLog div:last-child { color: #22c55e; }
-</style>
+    .player-card { background: #18181c; border: 1px solid #27272a; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; transition: all 0.3s ease; }
+    .player-card.active-p1 { border-color: #3b82f6; background: #1e293b; box-shadow: 0 0 12px rgba(59, 130, 246, 0.2); }
+    .player-card.active-p2 { border-color: #f97316; background: #2a1b12; box-shadow: 0 0 12px rgba(249, 115, 22, 0.2); }
+    .player-title { font-size: 1rem; font-weight: 700; color: #cbd5e1; }
+    .drop-status { font-size: 0.8rem; color: #71717a; display: flex; align-items: center; gap: 6px; }
+    .drop-badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; background: #27272a; color: #a1a1aa; }
+    .drop-badge.warn { background: #7f1d1d; color: #fca5a5; }
+
+    .status-card { background: #18181c; border: 1px solid #27272a; border-radius: 10px; padding: 12px; font-size: 0.85rem; color: #a1a1aa; line-height: 1.4; text-align: center; min-height: 52px; display: flex; align-items: center; justify-content: center; }
+    .status-card .warning-msg { color: #f87171; font-weight: 600; }
+
+    .info-box { background: #18181c; border: 1px dashed #3f3f46; border-radius: 10px; padding: 12px; font-size: 0.8rem; color: #818cf8; line-height: 1.5; }
+    .info-box h4 { color: #cbd5e1; margin-bottom: 6px; font-size: 0.85rem; }
+    .key { background: #27272a; color: #e2e8f0; padding: 1px 5px; border-radius: 4px; font-weight: 600; font-family: monospace; border: 1px solid #3f3f46; }
+
+    .hand-container-vertical { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+    .card { width: 66px; height: 66px; background: #18181c; border: 2px solid #27272a; border-radius: 8px; display: flex; justify-content: center; align-items: center; transition: all 0.2s ease; }
+    .card.selected-p1 { border-color: #3b82f6; background: #1e293b; transform: scale(1.08); box-shadow: 0 0 12px rgba(59, 130, 246, 0.3); }
+    .card.selected-p2 { border-color: #f97316; background: #2a1b12; transform: scale(1.08); box-shadow: 0 0 12px rgba(249, 115, 22, 0.3); }
+
+    .game-container { position: relative; background: #141417; border-radius: 12px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.8), 0 8px 32px rgba(0,0,0,0.6); border: 1px solid #27272a; overflow: hidden; }
+    canvas { display: block; }
+
+    .top-right-timer { position: absolute; top: 12px; right: 12px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; display: none; align-items: center; gap: 4px; z-index: 5; }
+    .top-right-timer.active { display: flex; }
+
+    .modal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 12, 0.92); backdrop-filter: blur(6px); display: flex; flex-direction: column; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 10; }
+    .modal-overlay.active { opacity: 1; pointer-events: auto; }
+    .modal-title { font-size: 1.8rem; font-weight: 700; color: #f1f5f9; margin-bottom: 8px; }
+    .modal-desc { font-size: 0.95rem; color: #94a3b8; margin-bottom: 20px; text-align: center; padding: 0 20px; line-height: 1.5; }
+
+    .btn-restart { padding: 10px 24px; background: #4f46e5; color: #ffffff; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .btn-restart:hover { background: #4338ca; }
+    
+    .room-input { background: #18181c; border: 1px solid #3f3f46; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 0.95rem; outline: none; width: 180px; text-align: center; }
+    .room-input:focus { border-color: #3b82f6; }
+
+    /* 複製按鈕樣式 */
+    .btn-copy { background: #3f3f46; color: #e2e8f0; border: 1px solid #52525b; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-copy:hover { background: #52525b; color: #fff; }
+  </style>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
 
-  <div id="lobbyOverlay" class="modal-overlay">
-    <div class="title">背景節流測試 - Web Worker 版<span class="badge">主機物理跑在獨立執行緒</span></div>
-    <div class="desc">跟正式版用同一套 PeerJS 連線架構<br>差別在於 P1 的物理模擬搬進 Web Worker，不受分頁節流影響</div>
-    <div style="display:flex; flex-direction:column; gap:14px; align-items:center;">
-      <button class="btn" onclick="createRoom()">建立房間 (我是 P1)</button>
+  <!-- 大廳 Modal -->
+  <div id="lobbyOverlay" class="modal-overlay active" style="z-index: 100;">
+    <div class="modal-title">線上對戰大廳</div>
+    <div class="modal-desc" id="lobbyStatus">請選擇建立房間，或是輸入朋友的房間 ID 連線</div>
+    
+    <div style="display:flex; flex-direction:column; gap:16px; align-items:center; margin-top:10px;">
+      <button class="btn-restart" onclick="createRoom()">建立房間 (我是 P1)</button>
+      
       <div style="display:flex; gap:8px; align-items:center;">
         <input type="text" id="roomInput" class="room-input" placeholder="輸入房間 ID">
-        <button class="btn green" onclick="joinRoom()">加入房間 (我是 P2)</button>
+        <button class="btn-restart" style="background:#059669;" onclick="joinRoom()">加入房間 (我是 P2)</button>
       </div>
     </div>
-    <div class="desc" id="lobbyStatus" style="margin-top:14px;"></div>
   </div>
 
-  <div id="statusText">請先連線</div>
+  <div class="layout-wrapper">
+    <!-- 左側欄 -->
+    <div class="side-panel left">
+      <div id="p1Card" class="player-card active-p1">
+        <div class="player-title" id="p1Title">玩家 P1 (藍)</div>
+        <div class="drop-status">掉落數量: <span id="p1ScoreBadge" class="drop-badge">0 / 11</span></div>
+      </div>
+      <div id="statusCard" class="status-card">選擇手牌中...</div>
+      <div class="info-box">
+        <h4>按鍵操作指示</h4>
+        <div><span class="key">←</span> <span class="key">→</span> <span class="key">↑</span> <span class="key">↓</span> 切換/移動</div>
+        <div style="margin-top: 4px;"><span class="key">R</span> 旋轉方塊</div>
+        <div style="margin-top: 4px;"><span class="key">E</span> 確定選擇 / 鎖定落點</div>
+      </div>
+    </div>
 
-  <div class="game-container">
-    <canvas id="gameCanvas" width="300" height="480"></canvas>
+    <!-- 中間遊戲區 -->
+    <div class="center-panel">
+      <div class="game-container">
+        <div id="topRightTimer" class="top-right-timer"><span>安定倒數:</span> <span id="timerVal">3</span>s</div>
+        <canvas id="gameCanvas" width="440" height="600"></canvas>
+        <div id="modalOverlay" class="modal-overlay">
+          <div id="modalTitle" class="modal-title">P1 獲勝！</div>
+          <div id="modalDesc" class="modal-desc">P2 累積掉落數量達到上限</div>
+          <button class="btn-restart" id="btnRestart" onclick="resetGame()">重新開始</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右側欄 -->
+    <div class="side-panel right">
+      <div id="p2Card" class="player-card">
+        <div class="player-title" id="p2Title">玩家 P2 (橘)</div>
+        <div class="drop-status">掉落數量: <span id="p2ScoreBadge" class="drop-badge">0 / 11</span></div>
+      </div>
+      <div class="hand-container-vertical">
+        <div class="card" id="card0"><canvas width="60" height="60"></canvas></div>
+        <div class="card" id="card1"><canvas width="60" height="60"></canvas></div>
+        <div class="card" id="card2"><canvas width="60" height="60"></canvas></div>
+        <div class="card" id="card3"><canvas width="60" height="60"></canvas></div>
+        <div class="card" id="card4"><canvas width="60" height="60"></canvas></div>
+      </div>
+    </div>
   </div>
 
-  <button class="btn" onclick="resetGame()">重新開始</button>
-
-  <div id="diagPanel">
-    <h4>連線診斷</h4>
-    <div id="diagRole">身分：尚未連線</div>
-    <div id="diagCounters">rAF次數: 0　worker次數: 0　廣播/收到次數: 0</div>
-    <div id="diagLog"></div>
-  </div>
-
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 // =========================================================================
-// Web Worker 原始碼：用字串內嵌 + Blob URL 建立，維持單一 HTML 檔案的原則。
-// 只有 P1（主機）會建立、使用這個 Worker。P2 完全不需要它（P2 本來就只是
-// 顯示端，不跑任何物理模擬）。
-// 這個 Worker 裡面是「完整獨立的一份遊戲邏輯」：載入 Matter.js、跑物理、
-// 處理按鍵、判斷落地/換人，透過 postMessage 把結果丟回主執行緒。
-// Worker 用 setInterval 驅動（Worker 裡沒有 requestAnimationFrame），
-// 而且 Worker 完全不受「分頁是否可見」的節流機制影響，這是這個架構的核心。
+// Web Worker 原始碼：主機（P1）的完整遊戲邏輯——物理引擎、抽牌規則、
+// 安定判定、回合流程——整個搬進這裡，用字串內嵌 + Blob URL 建立，
+// 維持單一 HTML 檔案的原則。P2 完全不需要用到這個 Worker（P2 本來就只是
+// 顯示端）。Worker 用 setInterval 驅動，不受主分頁可見性節流影響；
+// 主執行緒收到 Worker 傳回的訊息時直接觸發網路廣播，這個事件本身
+// 也不受節流影響，這是整個架構能撐過分頁被蓋住的關鍵。
 // =========================================================================
 const WORKER_SOURCE = `
   importScripts('https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js');
 
-  const TILE_SIZE = 24, CANVAS_WIDTH = 300, CANVAS_HEIGHT = 480, BAR_ROWS = 4;
+  const TILE_SIZE = 24, CANVAS_WIDTH = 440, CANVAS_HEIGHT = 600, INITIAL_BASE_Y = CANVAS_HEIGHT - (1.5 * TILE_SIZE);
+
+  const SHAPES_DATABASE = [
+    { name: 'I', color: '#8ca1ab', matrix: [[1,1,1,1]] }, { name: 'O', color: '#af9a92', matrix: [[1,1],[1,1]] },
+    { name: 'T', color: '#9ead9d', matrix: [[0,1,0],[1,1,1]] }, { name: 'S', color: '#c6b7b2', matrix: [[0,1,1],[1,1,0]] },
+    { name: 'Z', color: '#cbbe93', matrix: [[1,1,0],[0,1,1]] }, { name: 'J', color: '#78909c', matrix: [[1,0,0],[1,1,1]] },
+    { name: 'L', color: '#ddd4d0', matrix: [[0,0,1],[1,1,1]] }, { name: 'Plus', color: '#adadad', matrix: [[0,1,0],[1,1,1],[0,1,0]] },
+    { name: 'LongL', color: '#8c7e73', matrix: [[1,0],[1,0],[1,0],[1,1]] }, { name: 'U', color: '#9f45b755', matrix: [[1,0,1],[1,1,1]] },
+    { name: 'SmallL', color: '#de3d7855', matrix: [[1,0],[1,1]] }, { name: 'Dot', color: '#e5e5e5', matrix: [[1]] },
+    { name: 'Domino', color: '#9e847a', matrix: [[1,1]] }, { name: 'Line3', color: '#bbbf4b55', matrix: [[1,1,1]] },
+    { name: 'BigCorner', color: '#ea653c55', matrix: [[1,0,0],[1,0,0],[1,1,1]] }
+  ];
+
+  const ADVANCED_SHAPE_NAMES = ['L', 'Plus', 'LongL']; const ADVANCED_SHAPE_UNLOCK_COUNT = 15; let totalPlacementCount = 0;
+  const I_SHAPE_MIN_GAP = 5; let drawCount = 0; let lastIDrawnAt = -Infinity;
+  const DOT_PAIR_TRIGGER_WEIGHT = 1.3; const DOT_PAIR_MIN_GAP = 6; let pendingDotCount = 0; let lastDotPairTriggerAt = -Infinity;
+
   const { Engine, Bodies, Composite, Body, Events } = Matter;
   const engine = Engine.create({ positionIterations: 18, velocityIterations: 18, enableSleeping: false, gravity: { x: 0, y: 1.2, scale: 0.001 } });
 
-  let currentPlayer = 1, statusMsg = 'P1 回合：←→移動，空白鍵丟下';
-  let placedBodies = [], posX = CANVAS_WIDTH / 2, currentDropped = null, hasTouched = false, touchTime = 0;
-  let workerTickCount = 0;
+  let currentPlayer = 1, gameState = 'SELECT_CARD', playerDrops = { 1: 0, 2: 0 }, lastDropWarningMsg = '';
+  let sharedHand = [], selectedCardIndex = 0, activeShape = null, activeMatrix = null;
+  let posX = CANVAS_WIDTH / 2, posY = 200, countdownTimer = null, countdownValue = 3;
+  let placedBodies = [], currentDroppedBody = null, hasTouched = false, touchTime = 0, stableSince = null;
+  let modalTitle = '', modalDesc = '';
 
-  function makeBody(x, y, isStatic, width, height) {
-    const body = Bodies.rectangle(x, y, width, height, {
-      isStatic, friction: 1.2, frictionStatic: 1.4, frictionAir: 0.06, restitution: 0, density: 0.002
-    });
-    body.tileGrid = { rows: height / TILE_SIZE, cols: width / TILE_SIZE, tileSize: TILE_SIZE };
-    Composite.add(engine.world, body);
-    return body;
+  Events.on(engine, 'collisionStart', (event) => {
+    if (gameState === 'DROP_WAIT' && !hasTouched && currentDroppedBody) {
+      const parts = currentDroppedBody.parts;
+      event.pairs.forEach(pair => {
+        if (parts.includes(pair.bodyA) || parts.includes(pair.bodyB)) {
+          hasTouched = true; touchTime = Date.now(); stableSince = null; stabilitySnapshot = null;
+        }
+      });
+    }
+  });
+
+  const BASE_LEFT_X = CANVAS_WIDTH / 2 - (14 * TILE_SIZE) / 2;
+  function isStraightLineMatrix(matrix) { const r = matrix.length; const c = matrix[0].length; if (r !== 1 && c !== 1) return false; for (let i = 0; i < r; i++) for (let j = 0; j < c; j++) if (matrix[i][j] !== 1) return false; return true; }
+  function snapToGrid(px, cols) { const hw = (cols * TILE_SIZE) / 2; const le = px - hw; const sle = BASE_LEFT_X + Math.round((le - BASE_LEFT_X) / TILE_SIZE) * TILE_SIZE; return sle + hw; }
+  function cloneShape(template) { return { ...template, matrix: JSON.parse(JSON.stringify(template.matrix)) }; }
+
+  function getRandomShape() {
+    drawCount++;
+    if (pendingDotCount > 0) { pendingDotCount--; return cloneShape(SHAPES_DATABASE.find(s => s.name === 'Dot')); }
+    let normalPool = (totalPlacementCount >= ADVANCED_SHAPE_UNLOCK_COUNT ? SHAPES_DATABASE : SHAPES_DATABASE.filter(s => !ADVANCED_SHAPE_NAMES.includes(s.name))).filter(s => s.name !== 'Dot');
+    if (drawCount - lastIDrawnAt < I_SHAPE_MIN_GAP) normalPool = normalPool.filter(s => s.name !== 'I');
+    const dotPairAvailable = (drawCount - lastDotPairTriggerAt) >= DOT_PAIR_MIN_GAP;
+    const totalWeight = normalPool.length + (dotPairAvailable ? DOT_PAIR_TRIGGER_WEIGHT : 0);
+    let roll = Math.random() * totalWeight;
+    if (dotPairAvailable && roll < DOT_PAIR_TRIGGER_WEIGHT) { lastDotPairTriggerAt = drawCount; pendingDotCount = 1; return cloneShape(SHAPES_DATABASE.find(s => s.name === 'Dot')); }
+    roll -= dotPairAvailable ? DOT_PAIR_TRIGGER_WEIGHT : 0;
+    const template = normalPool[Math.min(normalPool.length - 1, Math.floor(roll))];
+    if (template.name === 'I') lastIDrawnAt = drawCount; return cloneShape(template);
+  }
+
+  function rotateMatrixClockwise(matrix) {
+    const rows = matrix.length; const cols = matrix[0].length;
+    const result = Array.from({ length: cols }, () => Array(rows).fill(0));
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) result[c][rows - 1 - r] = matrix[r][c];
+    return result;
+  }
+
+  function getHighestY() { let minY = CANVAS_HEIGHT - (2 * TILE_SIZE); placedBodies.forEach(b => { if (!b.isStatic) b.vertices.forEach(v => { if (v.y < minY) minY = v.y; }); }); return minY; }
+  function updateSpawnY() { const shapeRows = activeMatrix ? activeMatrix.length : 1; posY = Math.max(60, getHighestY() - (2 * TILE_SIZE) - (shapeRows * TILE_SIZE) / 2); }
+
+  const STATIONARY_HOLD_MS = 2000; const STATIONARY_DRIFT_TOLERANCE_PX = 1.5; const STATIONARY_DRIFT_TOLERANCE_RAD = 0.02; let stabilitySnapshot = null;
+  function captureStabilitySnapshot() { stabilitySnapshot = placedBodies.filter(b => !b.isStatic).map(b => ({ body: b, x: b.position.x, y: b.position.y, angle: b.angle })); }
+  function hasDriftedBeyondTolerance() {
+    if (!stabilitySnapshot) return false;
+    for (const snap of stabilitySnapshot) {
+      if (Math.hypot(snap.body.position.x - snap.x, snap.body.position.y - snap.y) > STATIONARY_DRIFT_TOLERANCE_PX || Math.abs(snap.body.angle - snap.angle) > STATIONARY_DRIFT_TOLERANCE_RAD) return true;
+    }
+    return false;
+  }
+  function isStrictlyStationary() {
+    for (let b of placedBodies) {
+      if (!b.isStatic && (Math.hypot(b.velocity.x, b.velocity.y) > 0.03 || Math.abs(b.angularVelocity) > 0.03)) { stableSince = null; stabilitySnapshot = null; return false; }
+    }
+    if (stableSince === null) { stableSince = Date.now(); captureStabilitySnapshot(); return false; }
+    if (hasDriftedBeyondTolerance()) { stableSince = Date.now(); captureStabilitySnapshot(); return false; }
+    return (Date.now() - stableSince) >= STATIONARY_HOLD_MS;
+  }
+
+  function createPhysicsBodyFromMatrix(x, y, matrix, color, isStatic = false) {
+    const rows = matrix.length; const cols = matrix[0].length;
+    if (isStraightLineMatrix(matrix)) {
+      const body = Bodies.rectangle(x, y, cols * TILE_SIZE, rows * TILE_SIZE, { isStatic, friction: 1.2, frictionStatic: 1.4, frictionAir: 0.06, restitution: 0, density: 0.002 });
+      body.customColor = color; body.tileGrid = { rows, cols, tileSize: TILE_SIZE }; Composite.add(engine.world, body); return body;
+    }
+    const parts = []; const offsetX = (cols * TILE_SIZE) / 2; const offsetY = (rows * TILE_SIZE) / 2;
+    for (let r = 0; r < rows; r++) {
+      let c = 0;
+      while (c < cols) {
+        if (matrix[r][c] === 1) {
+          const runStart = c; while (c < cols && matrix[r][c] === 1) c++;
+          const runLength = c - runStart; const runWidth = runLength * TILE_SIZE;
+          const box = Bodies.rectangle(x + (runStart * TILE_SIZE + runWidth / 2) - offsetX, y + (r * TILE_SIZE + TILE_SIZE / 2) - offsetY, runWidth, TILE_SIZE, {});
+          box.tileCount = runLength; parts.push(box);
+        } else c++;
+      }
+    }
+    const compoundBody = Body.create({ parts, isStatic, friction: 1.2, frictionStatic: 1.4, frictionAir: 0.06, restitution: 0, density: 0.002 });
+    Body.setPosition(compoundBody, { x, y }); compoundBody.customColor = color; Composite.add(engine.world, compoundBody); return compoundBody;
   }
 
   function initGame() {
     placedBodies.forEach(b => Composite.remove(engine.world, b)); placedBodies = [];
-    currentPlayer = 1; posX = CANVAS_WIDTH / 2; currentDropped = null; hasTouched = false;
-    statusMsg = 'P1 回合：←→移動，空白鍵丟下';
-    const base = makeBody(CANVAS_WIDTH / 2, CANVAS_HEIGHT - TILE_SIZE, true, CANVAS_WIDTH - 40, TILE_SIZE);
-    placedBodies.push(base);
+    currentPlayer = 1; playerDrops = { 1: 0, 2: 0 }; lastDropWarningMsg = ''; gameState = 'SELECT_CARD'; selectedCardIndex = 0; currentDroppedBody = null; hasTouched = false; stableSince = null; stabilitySnapshot = null; totalPlacementCount = 0; drawCount = 0; lastIDrawnAt = -Infinity; pendingDotCount = 0; lastDotPairTriggerAt = -Infinity;
+    modalTitle = ''; modalDesc = '';
+    sharedHand = [getRandomShape(), getRandomShape(), getRandomShape(), getRandomShape(), getRandomShape()];
+    const initialBaseBody = createPhysicsBodyFromMatrix(CANVAS_WIDTH / 2, INITIAL_BASE_Y, [[1,1,1,1,1,1,1,1,1,1,1,1,1,1]], '#546e7a', true);
+    placedBodies.push(initialBaseBody);
   }
 
-  function handleKey(key) {
-    if (currentDropped) return;
-    if (key === 'ARROWLEFT') posX = Math.max(TILE_SIZE, posX - TILE_SIZE);
-    else if (key === 'ARROWRIGHT') posX = Math.min(CANVAS_WIDTH - TILE_SIZE, posX + TILE_SIZE);
-    else if (key === ' ') {
-      currentDropped = makeBody(posX, 60, false, TILE_SIZE, TILE_SIZE * BAR_ROWS);
-      placedBodies.push(currentDropped); hasTouched = false;
+  function dropCurrentBlock() {
+    gameState = 'DROP_WAIT'; hasTouched = false; touchTime = 0; stableSince = null; stabilitySnapshot = null; totalPlacementCount++;
+    currentDroppedBody = createPhysicsBodyFromMatrix(posX, posY, activeMatrix, activeShape.color, false); placedBodies.push(currentDroppedBody);
+  }
+
+  function processFallenBlocks() {
+    const fallen = [];
+    placedBodies = placedBodies.filter(b => { if (b.position.y > CANVAS_HEIGHT + 30 || b.position.x < -80 || b.position.x > CANVAS_WIDTH + 80) { fallen.push(b); Composite.remove(engine.world, b); return false; } return true; });
+    if (fallen.length > 0) {
+      playerDrops[currentPlayer] += fallen.length;
+      if (gameState !== 'GAME_OVER' && playerDrops[currentPlayer] >= 11) endGame('P' + (currentPlayer === 1 ? 2 : 1) + ' 獲勝！', 'P' + currentPlayer + ' 累積掉落 11 個方塊達到上限！');
+      else lastDropWarningMsg = '⚠️ P' + currentPlayer + ' 方塊掉落！(累積 ' + playerDrops[currentPlayer] + '/11 個)';
     }
-    statusMsg = 'P' + currentPlayer + ' 回合：←→移動，空白鍵丟下';
   }
 
-  Events.on(engine, 'collisionStart', (e) => {
-    if (currentDropped && !hasTouched) {
-      e.pairs.forEach(p => { if (p.bodyA === currentDropped || p.bodyB === currentDropped) { hasTouched = true; touchTime = Date.now(); } });
-    }
-  });
-
-  function switchTurn() {
-    currentDropped = null;
-    currentPlayer = currentPlayer === 1 ? 2 : 1;
-    statusMsg = 'P' + currentPlayer + ' 回合：←→移動，空白鍵丟下';
+  function finishTurn() {
+    if (gameState === 'GAME_OVER') return;
+    currentDroppedBody = null; hasTouched = false;
+    if (getHighestY() <= 60) { endGame('平局！', '雙方防守極為出色，積木塔已堆疊至頂端！'); return; }
+    currentPlayer = currentPlayer === 1 ? 2 : 1; selectedCardIndex = 0; gameState = 'SELECT_CARD';
   }
 
-  function checkSettled() {
-    if (!currentDropped || !hasTouched) return;
-    if (Date.now() - touchTime < 1200) return;
-    switchTurn();
-  }
+  function endGame(title, desc) { gameState = 'GAME_OVER'; modalTitle = title; modalDesc = desc; }
 
-  function tick() {
-    workerTickCount++;
-    Engine.update(engine, 1000 / 60);
-    placedBodies.forEach(b => {
-      if (!b.isStatic) {
-        const s = Math.hypot(b.velocity.x, b.velocity.y);
-        if (s > 18) Body.setVelocity(b, { x: b.velocity.x * 18 / s, y: b.velocity.y * 18 / s });
+  function handleGameInput(key) {
+    if (gameState === 'GAME_OVER' || gameState === 'DROP_WAIT') return;
+    if (gameState === 'SELECT_CARD') {
+      if (key === 'ARROWUP' || key === 'ARROWLEFT' || key === 'A') selectedCardIndex = (selectedCardIndex + 2) % 3;
+      else if (key === 'ARROWDOWN' || key === 'ARROWRIGHT' || key === 'D') selectedCardIndex = (selectedCardIndex + 1) % 3;
+      else if (key === 'E' || key === 'ENTER') {
+        const chosenIndex = selectedCardIndex; activeShape = sharedHand[chosenIndex]; activeMatrix = JSON.parse(JSON.stringify(activeShape.matrix));
+        posX = snapToGrid(CANVAS_WIDTH / 2, activeMatrix[0].length); updateSpawnY(); gameState = 'POSITIONING'; lastDropWarningMsg = '';
+        sharedHand[chosenIndex] = sharedHand[3]; sharedHand[3] = sharedHand[4]; sharedHand[4] = getRandomShape();
       }
-    });
-    if (currentDropped && currentDropped.position.y > CANVAS_HEIGHT + 30) switchTurn();
-    checkSettled();
-    placedBodies = placedBodies.filter(b => {
-      if (b.position.y > CANVAS_HEIGHT + 60) { Composite.remove(engine.world, b); return false; }
-      return true;
-    });
+    } else if (gameState === 'POSITIONING') {
+      if (key === 'W') { gameState = 'SELECT_CARD'; return; }
+      if (key === 'ARROWLEFT' || key === 'A') posX = snapToGrid(Math.max((activeMatrix[0].length * TILE_SIZE) / 2 + 6, posX - TILE_SIZE), activeMatrix[0].length);
+      else if (key === 'ARROWRIGHT' || key === 'D') posX = snapToGrid(Math.min(CANVAS_WIDTH - (activeMatrix[0].length * TILE_SIZE) / 2 - 6, posX + TILE_SIZE), activeMatrix[0].length);
+      else if (key === 'R') { activeMatrix = rotateMatrixClockwise(activeMatrix); posX = snapToGrid(posX, activeMatrix[0].length); updateSpawnY(); }
+      else if (key === 'E' || key === 'ENTER') {
+        gameState = 'COUNTDOWN'; countdownValue = 3;
+        countdownTimer = setInterval(() => { countdownValue--; if (countdownValue <= 0) { clearInterval(countdownTimer); dropCurrentBlock(); } }, 1000);
+      }
+    }
+  }
+
+  const PHYSICS_SUBSTEPS = 2;
+  function tick() {
+    for (let i = 0; i < PHYSICS_SUBSTEPS; i++) Engine.update(engine, (1000 / 60) / PHYSICS_SUBSTEPS);
+    placedBodies.forEach(b => { if (!b.isStatic) { const s = Math.hypot(b.velocity.x, b.velocity.y); if (s > 18) Body.setVelocity(b, { x: b.velocity.x * 18 / s, y: b.velocity.y * 18 / s }); } });
+    processFallenBlocks();
+
+    if (gameState === 'DROP_WAIT') {
+      if (!hasTouched) { if (currentDroppedBody && currentDroppedBody.position.y > CANVAS_HEIGHT + 30) finishTurn(); }
+      else {
+        const elapsed = Date.now() - touchTime;
+        if (elapsed < 6000) { if (isStrictlyStationary()) finishTurn(); }
+        else finishTurn();
+      }
+    }
 
     postMessage({
       type: 'STATE',
-      currentPlayer, statusMsg, posX, showPreview: !currentDropped, workerTickCount,
+      gameState, currentPlayer, playerDrops, sharedHand, activeMatrix, activeShape,
+      posX, posY, countdownValue, selectedCardIndex, lastDropWarningMsg,
+      hasTouched, touchTime, modalTitle, modalDesc,
       bodies: placedBodies.map(b => ({
         id: b.id,
         x: Math.round(b.position.x * 10) / 10, y: Math.round(b.position.y * 10) / 10,
-        angle: Math.round(b.angle * 100) / 100, tileGrid: b.tileGrid, isStatic: b.isStatic
+        angle: Math.round(b.angle * 100) / 100, color: b.customColor, tileGrid: b.tileGrid,
+        parts: b.parts.map(p => ({
+          x: Math.round(p.position.x * 10) / 10, y: Math.round(p.position.y * 10) / 10,
+          tileCount: p.tileCount,
+          vertices: p.vertices.map(v => ({ x: Math.round(v.x * 10) / 10, y: Math.round(v.y * 10) / 10 }))
+        }))
       }))
     });
   }
@@ -167,195 +342,414 @@ const WORKER_SOURCE = `
   self.onmessage = (e) => {
     const msg = e.data;
     if (msg.type === 'INIT') initGame();
-    else if (msg.type === 'KEY') handleKey(msg.key);
+    else if (msg.type === 'KEY') handleGameInput(msg.key);
   };
 
-  setInterval(tick, 1000 / 60); // Worker 用 setInterval 驅動，不受分頁可見性節流影響
+  setInterval(tick, 1000 / 60); // 用 setInterval 驅動，不受分頁可見性節流影響
 `;
 
 let physicsWorker = null;
+let workerMsgCount = 0;
+
 function createPhysicsWorker() {
   const blob = new Blob([WORKER_SOURCE], { type: 'application/javascript' });
   physicsWorker = new Worker(URL.createObjectURL(blob));
   physicsWorker.onmessage = (e) => {
     if (e.data.type !== 'STATE') return;
-    workerTickCount = e.data.workerTickCount;
-    currentPlayer = e.data.currentPlayer; statusMsg = e.data.statusMsg;
-    posX = e.data.posX; showPreview = e.data.showPreview; localBodies = e.data.bodies;
-    document.getElementById('statusText').innerText = statusMsg;
+    const s = e.data;
+    gameState = s.gameState; currentPlayer = s.currentPlayer; playerDrops = s.playerDrops;
+    sharedHand = s.sharedHand; activeMatrix = s.activeMatrix; activeShape = s.activeShape;
+    posX = s.posX; posY = s.posY; countdownValue = s.countdownValue; selectedCardIndex = s.selectedCardIndex;
+    lastDropWarningMsg = s.lastDropWarningMsg; hasTouched = s.hasTouched; touchTime = s.touchTime;
+    localBodies = s.bodies;
 
-    // 廣播頻率沿用原本邏輯（約每 2 次訊息送一次），不因為改用 Worker 就增加網路流量；
-    // 這裡故意不放進 rAF 迴圈，而是資料一到就直接判斷要不要送，
-    // 確保就算主執行緒的 rAF 被節流，廣播還是能持續進行。
+    if (gameState === 'GAME_OVER') showModal(s.modalTitle, s.modalDesc);
+    else hideModal();
+
+    updateUI(); renderHandCards();
+
+    // 廣播觸發點放在這裡（Worker 訊息到達的事件），而不是 rAF 迴圈裡——
+    // 這是整個架構的關鍵：就算主執行緒的 rAF 被節流到幾乎停擺，
+    // Worker→主執行緒的 postMessage 依然會照常送達，廣播不會跟著停。
     workerMsgCount++;
     if (workerMsgCount % 2 === 0) broadcastState();
     drawFrame();
   };
 }
 
-// ---------- 連線（跟正式版同一套架構） ----------
-let peer = null, conn = null, myRole = null, remoteBodies = [];
+function showModal(title, desc) {
+  document.getElementById('modalTitle').innerText = title;
+  document.getElementById('modalDesc').innerText = desc;
+  document.getElementById('modalOverlay').classList.add('active');
+}
+function hideModal() { document.getElementById('modalOverlay').classList.remove('active'); }
+
+// --- 線上對戰 (PeerJS) 變數與邏輯 ---
+let peer = null;
+let conn = null;
+let myRole = null;
+let remoteBodies = [];
 
 function copyRoomId(id) {
   const btn = document.getElementById('copyBtn');
-  const done = () => { if (btn) { btn.innerText = '✅ 已複製'; setTimeout(() => btn.innerText = '📋 複製 ID', 1500); } };
-  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(id).then(done).catch(() => fallbackCopy(id, done));
-  else fallbackCopy(id, done);
+  const showCopied = () => {
+    if (!btn) return;
+    btn.innerText = '✅ 已複製！';
+    btn.style.background = '#059669';
+    btn.style.borderColor = '#047857';
+    setTimeout(() => {
+      btn.innerText = '📋 複製 ID';
+      btn.style.background = '#3f3f46';
+      btn.style.borderColor = '#52525b';
+    }, 2000);
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(id).then(showCopied).catch(() => fallbackCopy(id, showCopied));
+  } else {
+    fallbackCopy(id, showCopied);
+  }
 }
-function fallbackCopy(text, cb) {
-  const t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
-  document.body.appendChild(t); t.select();
-  try { document.execCommand('copy'); cb(); } catch (e) { alert('請手動複製：' + text); }
-  document.body.removeChild(t);
+
+function fallbackCopy(text, onSuccess) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  try {
+    document.execCommand('copy');
+    onSuccess();
+  } catch (err) {
+    alert('自動複製失敗，請手動選取房間 ID 複製：' + text);
+  }
+  document.body.removeChild(textarea);
 }
 
 function createRoom() {
   document.activeElement.blur();
-  const roomId = 'bgtest-' + Math.floor(1000 + Math.random() * 9000);
-  peer = new Peer(roomId); myRole = 'P1';
+  const roomId = 'stack-' + Math.floor(1000 + Math.random() * 9000);
+  peer = new Peer(roomId);
+  myRole = 'P1';
   createPhysicsWorker();
-  document.getElementById('lobbyStatus').innerText = '建立房間中...';
+
+  document.getElementById('lobbyStatus').innerText = '正在建立房間...';
+
   peer.on('open', (id) => {
     document.getElementById('lobbyStatus').innerHTML =
-      `房間 ID：<span style="color:#38bdf8;font-weight:bold;">${id}</span> ` +
-      `<button id="copyBtn" class="btn-copy" onclick="copyRoomId('${id}')">📋 複製 ID</button><br><span style="font-size:0.8rem;">等待 P2 連線中...</span>`;
+      `房間建立成功！請將下方 ID 傳給 P2 朋友：<br>` +
+      `<div style="display:flex; justify-content:center; align-items:center; gap:12px; margin-top:16px;">` +
+        `<span style="color:#38bdf8; font-size:1.6rem; font-weight:bold; letter-spacing:1px;">${id}</span>` +
+        `<button id="copyBtn" class="btn-copy" onclick="copyRoomId('${id}')">📋 複製 ID</button>` +
+      `</div><div style="margin-top:16px; font-size:0.85rem; color:#71717a;">等待朋友連線中...</div>`;
   });
+
   peer.on('connection', (c) => {
-    conn = c; setupConnection();
-    document.getElementById('lobbyOverlay').classList.add('hidden');
+    conn = c;
+    setupConnection();
+    document.getElementById('lobbyOverlay').classList.remove('active');
     physicsWorker.postMessage({ type: 'INIT' });
   });
 }
+
 function joinRoom() {
   document.activeElement.blur();
   const targetId = document.getElementById('roomInput').value.trim();
   if (!targetId) return alert('請輸入房間 ID');
-  peer = new Peer(); myRole = 'P2';
-  document.getElementById('lobbyStatus').innerText = '連線中...';
-  peer.on('open', () => { conn = peer.connect(targetId, { reliable: true }); setupConnection(); });
-  peer.on('error', () => document.getElementById('lobbyStatus').innerText = '連線失敗，請確認房間 ID');
-}
-function setupConnection() {
-  conn.on('open', () => {
-    document.getElementById('lobbyOverlay').classList.add('hidden');
-    document.getElementById('diagRole').innerText = '身分：' + myRole;
+
+  peer = new Peer();
+  myRole = 'P2';
+  document.getElementById('lobbyStatus').innerText = '正在連線至房間...';
+
+  peer.on('open', () => {
+    conn = peer.connect(targetId, { reliable: true });
+    setupConnection();
   });
-  conn.on('data', (data) => {
-    if (myRole === 'P1' && data.type === 'KEY_INPUT' && currentPlayer === 2) physicsWorker.postMessage({ type: 'KEY', key: data.key });
-    else if (myRole === 'P2' && data.type === 'SYNC') applySyncedState(data.state);
+
+  peer.on('error', (err) => {
+    alert('連線失敗，請確認房間 ID 是否正確');
+    document.getElementById('lobbyStatus').innerText = '連線失敗，請重試。';
   });
 }
 
-let broadcastCount = 0, rafTickCount = 0, receivedCount = 0, workerTickCount = 0, workerMsgCount = 0;
-let remotePosX = 150, remoteShowPreview = false;
-let localBodies = [], showPreview = false; // P1 端從 Worker 收到、鏡像在主執行緒的狀態
+function setupConnection() {
+  conn.on('open', () => {
+    if (document.activeElement) document.activeElement.blur();
+    document.getElementById('lobbyOverlay').classList.remove('active');
+    document.getElementById('p1Title').innerText = myRole === 'P1' ? '玩家 P1 (你)' : '玩家 P1 (藍)';
+    document.getElementById('p2Title').innerText = myRole === 'P2' ? '玩家 P2 (你)' : '玩家 P2 (橘)';
+    if (myRole === 'P2') document.getElementById('btnRestart').style.display = 'none';
+  });
+
+  conn.on('data', (data) => {
+    if (myRole === 'P1') {
+      if (data.type === 'KEY_INPUT' && currentPlayer === 2 && physicsWorker) {
+        physicsWorker.postMessage({ type: 'KEY', key: data.key });
+      }
+    } else if (myRole === 'P2') {
+      if (data.type === 'SYNC') applySyncedState(data.state);
+    }
+  });
+}
+
+// 壓縮浮點數，解決網路塞車與延遲問題
+const roundNum = (num) => Math.round(num * 10) / 10;
 
 function broadcastState() {
   if (myRole !== 'P1' || !conn) return;
-  broadcastCount++;
-  const snapshot = { currentPlayer, statusMsg, posX, showPreview, bodies: localBodies };
+  const snapshot = {
+    gameState, currentPlayer, playerDrops, sharedHand,
+    posX: roundNum(posX), posY: roundNum(posY), activeMatrix, activeShape, countdownValue,
+    selectedCardIndex, lastDropWarningMsg, hasTouched, touchTime, modalTitle, modalDesc,
+    bodies: localBodies // Worker 傳回來時已經序列化、四捨五入過了，直接轉發即可
+  };
   try { conn.send({ type: 'SYNC', state: snapshot }); } catch (e) {}
 }
+
+// --- P2 端：物理搖晃內插補間 ---
+// 主機每約 33ms（2 次 Worker 訊息）廣播一次快照，P2 端刻意把畫面渲染的時間點往回拉一小段
+// （INTERP_DELAY_MS），讓渲染當下永遠介於「已經收到的兩筆真實快照」之間，用線性內插畫出
+// 中間過渡的每一影格（60fps），而不需要做風險較高的「往未來外推」。
+let prevSnapshot = null;
+let currSnapshot = null;
+const INTERP_DELAY_MS = 90;
+
+const lerp = (a, b, t) => a + (b - a) * t;
+function lerpAngle(a, b, t) {
+  let diff = b - a;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  return a + diff * t;
+}
+
+function getInterpolatedBodies() {
+  if (!currSnapshot) return [];
+  if (!prevSnapshot) return currSnapshot.bodies;
+
+  const renderTime = performance.now() - INTERP_DELAY_MS;
+  if (renderTime <= prevSnapshot.time) return prevSnapshot.bodies;
+  if (renderTime >= currSnapshot.time) return currSnapshot.bodies;
+
+  const span = currSnapshot.time - prevSnapshot.time;
+  const t = span > 0 ? (renderTime - prevSnapshot.time) / span : 1;
+  const prevMap = new Map(prevSnapshot.bodies.map(b => [b.id, b]));
+
+  return currSnapshot.bodies.map(currBody => {
+    const prevBody = prevMap.get(currBody.id);
+    if (!prevBody) return currBody;
+    return {
+      ...currBody,
+      x: lerp(prevBody.x, currBody.x, t),
+      y: lerp(prevBody.y, currBody.y, t),
+      angle: lerpAngle(prevBody.angle, currBody.angle, t),
+      parts: currBody.parts.map((currPart, idx) => {
+        const prevPart = prevBody.parts[idx];
+        if (!prevPart) return currPart;
+        return { ...currPart, x: lerp(prevPart.x, currPart.x, t), y: lerp(prevPart.y, currPart.y, t) };
+      })
+    };
+  });
+}
+
 function applySyncedState(state) {
-  receivedCount++;
-  currentPlayer = state.currentPlayer; statusMsg = state.statusMsg; remoteBodies = state.bodies;
-  remotePosX = state.posX; remoteShowPreview = state.showPreview;
-  document.getElementById('statusText').innerText = statusMsg;
-  logDiag();
-  drawFrame(); // 資料一到就立即重繪，不依賴可能被節流的動畫迴圈
+  gameState = state.gameState; currentPlayer = state.currentPlayer;
+  playerDrops = state.playerDrops; sharedHand = state.sharedHand;
+  posX = state.posX; posY = state.posY; activeMatrix = state.activeMatrix;
+  activeShape = state.activeShape; countdownValue = state.countdownValue;
+  selectedCardIndex = state.selectedCardIndex; lastDropWarningMsg = state.lastDropWarningMsg;
+  hasTouched = state.hasTouched; touchTime = state.touchTime;
+  remoteBodies = state.bodies;
+  prevSnapshot = currSnapshot;
+  currSnapshot = { time: performance.now(), bodies: state.bodies };
+  updateUI(); renderHandCards();
+  if (gameState === 'GAME_OVER') showModal(state.modalTitle, state.modalDesc);
+  else hideModal();
+  // 立即手動重繪一次：背景分頁的 requestAnimationFrame 動畫迴圈會被瀏覽器大幅節流，
+  // 只依賴動畫迴圈會導致 P2 分頁沒被聚焦時畫面完全沒反應；資料一到就強制畫一次可以避開這個限制
+  drawFrame();
 }
 
-const TILE_SIZE = 24, CANVAS_WIDTH = 300, CANVAS_HEIGHT = 480, BAR_ROWS = 4;
-const canvas = document.getElementById('gameCanvas'), ctx = canvas.getContext('2d');
-let currentPlayer = 1, statusMsg = 'P1 回合：←→移動，空白鍵丟下', posX = CANVAS_WIDTH / 2;
+// --- 主執行緒共用常數 / 鏡像狀態 ---
+// 這些常數/變數在 Worker 內也各自有一份（Worker 是獨立記憶體空間，無法共用），
+// 主執行緒這邊只用來：畫面渲染、DOM 更新、P2 的客戶端預測。
+const TILE_SIZE = 24; const CANVAS_WIDTH = 440; const CANVAS_HEIGHT = 600;
+const BASE_LEFT_X = CANVAS_WIDTH / 2 - (14 * TILE_SIZE) / 2;
+const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
 
-function resetGame() { if (myRole === 'P1' && physicsWorker) physicsWorker.postMessage({ type: 'INIT' }); }
+let gameState = 'SELECT_CARD', currentPlayer = 1, playerDrops = { 1: 0, 2: 0 }, lastDropWarningMsg = '';
+let sharedHand = [], selectedCardIndex = 0, activeShape = null, activeMatrix = null;
+let posX = CANVAS_WIDTH / 2, posY = 200, countdownValue = 3;
+let hasTouched = false, touchTime = 0;
+let localBodies = []; // P1 端：從 Worker 鏡像過來的方塊列表
 
-window.addEventListener('keydown', (e) => {
-  const k = e.key === ' ' ? ' ' : e.key.toUpperCase();
-  if (['ARROWLEFT', 'ARROWRIGHT', ' '].includes(k)) e.preventDefault();
-  if (!['ARROWLEFT', 'ARROWRIGHT', ' '].includes(k)) return;
+function snapToGrid(px, cols) { const hw = (cols * TILE_SIZE) / 2; const le = px - hw; const sle = BASE_LEFT_X + Math.round((le - BASE_LEFT_X) / TILE_SIZE) * TILE_SIZE; return sle + hw; }
+function rotateMatrixClockwise(matrix) {
+  const rows = matrix.length; const cols = matrix[0].length;
+  const result = Array.from({ length: cols }, () => Array(rows).fill(0));
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) result[c][rows - 1 - r] = matrix[r][c];
+  return result;
+}
 
-  if (myRole === 'P2') {
-    if (currentPlayer === 2 && conn) {
-      try { conn.send({ type: 'KEY_INPUT', key: k }); } catch (err) {}
-      if (k === 'ARROWLEFT') remotePosX = Math.max(TILE_SIZE, remotePosX - TILE_SIZE);
-      else if (k === 'ARROWRIGHT') remotePosX = Math.min(CANVAS_WIDTH - TILE_SIZE, remotePosX + TILE_SIZE);
-      drawFrame();
+function updateUI() {
+  document.getElementById('p1Card').className = `player-card ${currentPlayer === 1 ? 'active-p1' : ''}`;
+  document.getElementById('p1ScoreBadge').innerText = `${playerDrops[1]} / 11`;
+  document.getElementById('p1ScoreBadge').className = `drop-badge ${playerDrops[1] > 0 ? 'warn' : ''}`;
+  document.getElementById('p2Card').className = `player-card ${currentPlayer === 2 ? 'active-p2' : ''}`;
+  document.getElementById('p2ScoreBadge').innerText = `${playerDrops[2]} / 11`;
+  document.getElementById('p2ScoreBadge').className = `drop-badge ${playerDrops[2] > 0 ? 'warn' : ''}`;
+
+  const statusCard = document.getElementById('statusCard');
+  if (lastDropWarningMsg) statusCard.innerHTML = `<span class="warning-msg">${lastDropWarningMsg}</span>`;
+  else if (gameState === 'SELECT_CARD') statusCard.innerHTML = `P${currentPlayer} 回合：請在右側選擇 (<span class="key">E</span> 選定)`;
+  else if (gameState === 'POSITIONING') statusCard.innerHTML = `P${currentPlayer} 放置中`;
+  else if (gameState === 'COUNTDOWN') statusCard.innerHTML = `已鎖定！倒數 <b>${countdownValue}</b> 秒釋放...`;
+  else if (gameState === 'DROP_WAIT') {
+    if (!hasTouched) statusCard.innerHTML = `方塊下落中...`;
+    else {
+      const elapsed = Date.now() - touchTime;
+      if (elapsed < 3000) statusCard.innerHTML = `下落接觸！判定平穩中 (3秒內)...`;
+      else statusCard.innerHTML = `⚠️ 仍未靜止！進入 <b>安定倒數 ${Math.max(1, Math.ceil((6000 - elapsed) / 1000))} 秒</b>...`;
     }
-    return;
   }
-  // P1 自己按鍵：丟給 Worker 處理，不在主執行緒直接算物理
-  if (myRole === 'P1' && currentPlayer === 1 && physicsWorker) physicsWorker.postMessage({ type: 'KEY', key: k });
-});
 
-// ---------- 診斷面板 ----------
-function logDiag() {
-  document.getElementById('diagCounters').innerText =
-    `rAF次數: ${rafTickCount}　worker次數: ${workerTickCount}　${myRole === 'P1' ? '廣播' : '收到'}次數: ${myRole === 'P1' ? broadcastCount : receivedCount}`;
+  // 安定倒數計時器 UI：用同步過來的 hasTouched/touchTime 判斷，P1、P2 現在共用同一套邏輯，
+  // 不再像過去那樣只有 P1 才會顯示這個提示。
+  if (gameState === 'DROP_WAIT' && hasTouched) {
+    const elapsed = Date.now() - touchTime;
+    if (elapsed >= 3000) showTopRightTimer(Math.max(1, Math.ceil((6000 - elapsed) / 1000)));
+    else hideTopRightTimer();
+  } else {
+    hideTopRightTimer();
+  }
 }
-setInterval(() => {
-  if (!myRole) return;
-  const line = document.createElement('div');
-  const t = new Date().toLocaleTimeString();
-  line.innerText = `[${t}] rAF=${rafTickCount} worker=${workerTickCount} ${myRole === 'P1' ? 'bcast' : 'recv'}=${myRole === 'P1' ? broadcastCount : receivedCount}`;
-  const log = document.getElementById('diagLog');
-  log.appendChild(line);
-  while (log.children.length > 30) log.removeChild(log.firstChild);
-  log.scrollTop = log.scrollHeight;
-}, 1000);
 
-// ---------- 畫面繪製 ----------
-function drawTileRun(cx, cy, angle, count, tileSize, vertical) {
-  const cos = Math.cos(angle), sin = Math.sin(angle), half = tileSize / 2;
+function renderHandCards() {
+  for (let i = 0; i < 5; i++) {
+    const cardEl = document.getElementById(`card${i}`); const cctx = cardEl.querySelector('canvas').getContext('2d');
+    cardEl.className = `card ${(gameState === 'SELECT_CARD' && i === selectedCardIndex && i < 3) ? `selected-p${currentPlayer}` : ''}`;
+    cctx.filter = 'none'; cctx.fillStyle = "#18181c"; cctx.fillRect(0, 0, 60, 60);
+    if (sharedHand[i]) {
+      const isQueued = (i === 3 || i === 4); cctx.filter = isQueued ? 'grayscale(80%)' : 'none';
+      drawMatrixToCanvas(cctx, sharedHand[i].matrix, sharedHand[i].color, 30, 30, 11, isQueued ? 0.2 : 1.0, true); cctx.filter = 'none';
+    }
+  }
+}
+
+function drawTileRun(ctx, cx, cy, angle, count, tileSize, vertical) {
+  const cos = Math.cos(angle); const sin = Math.sin(angle); const half = tileSize / 2;
   for (let i = 0; i < count; i++) {
-    const off = (i - (count - 1) / 2) * tileSize;
-    const lx = vertical ? 0 : off, ly = vertical ? off : 0;
-    const corners = [{x:-half,y:-half},{x:half,y:-half},{x:half,y:half},{x:-half,y:half}];
+    const offset = (i - (count - 1) / 2) * tileSize; const localX = vertical ? 0 : offset; const localY = vertical ? offset : 0;
+    const corners = [{ x: -half, y: -half }, { x: half, y: -half }, { x: half, y: half }, { x: -half, y: half }];
     ctx.beginPath();
-    corners.forEach((c, idx) => {
-      const wx = cx + (lx + c.x) * cos - (ly + c.y) * sin, wy = cy + (lx + c.x) * sin + (ly + c.y) * cos;
+    corners.forEach((corner, idx) => {
+      const wx = cx + (localX + corner.x) * cos - (localY + corner.y) * sin; const wy = cy + (localX + corner.x) * sin + (localY + corner.y) * cos;
       if (idx === 0) ctx.moveTo(wx, wy); else ctx.lineTo(wx, wy);
     });
     ctx.closePath(); ctx.fill(); ctx.stroke();
   }
 }
 
-function drawBodiesList(list) {
-  list.forEach(b => {
-    ctx.fillStyle = b.isStatic ? '#546e7a' : '#8ca1ab';
-    ctx.strokeStyle = '#18181c'; ctx.lineWidth = 1;
-    const g = b.tileGrid, count = g.rows === 1 ? g.cols : g.rows;
-    drawTileRun(b.x, b.y, b.angle, count, TILE_SIZE, g.rows !== 1);
-  });
+function drawMatrixToCanvas(targetCtx, matrix, color, centerX, centerY, tileSize, alpha = 1.0, isCard = false) {
+  const rows = matrix.length; const cols = matrix[0].length; const startX = centerX - (cols * tileSize) / 2; const startY = centerY - (rows * tileSize) / 2;
+  targetCtx.save(); targetCtx.globalAlpha = alpha; targetCtx.fillStyle = color; targetCtx.strokeStyle = isCard ? '#27272a' : '#18181c'; targetCtx.lineWidth = 1;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (matrix[r][c] === 1) { targetCtx.fillRect(startX + c * tileSize, startY + r * tileSize, tileSize - 1, tileSize - 1); targetCtx.strokeRect(startX + c * tileSize, startY + r * tileSize, tileSize - 1, tileSize - 1); }
+  targetCtx.restore();
 }
 
+function showTopRightTimer(val) { document.getElementById('topRightTimer').classList.add('active'); document.getElementById('timerVal').innerText = val; }
+function hideTopRightTimer() { document.getElementById('topRightTimer').classList.remove('active'); }
+
+// --- P2 端：客戶端預測 ---
+// 「選手牌、左右移動、旋轉、取消」這幾個動作是純粹的格子/索引運算，不涉及亂數或物理，
+// P2 可以放心在本地立即套用一份預測結果（操作手感接近零延遲），同時仍把按鍵送給 P1 走一遍權威邏輯，
+// 之後主機廣播回來的狀態會自動覆蓋校正，兩邊算出來的結果理論上應該一致，不會有明顯的跳動修正。
+// 唯獨「E / Enter」不做預測：它會觸發亂數抽牌、啟動倒數計時器、甚至建立真正的物理方塊，
+// 這些都必須只由 P1 那份權威模擬（現在是 Worker）執行一次，不能兩邊各做一次。
+function handleLocalPredictionInput(key) {
+  if (gameState === 'SELECT_CARD') {
+    if (key === 'ARROWUP' || key === 'ARROWLEFT' || key === 'A') { selectedCardIndex = (selectedCardIndex + 2) % 3; renderHandCards(); }
+    else if (key === 'ARROWDOWN' || key === 'ARROWRIGHT' || key === 'D') { selectedCardIndex = (selectedCardIndex + 1) % 3; renderHandCards(); }
+  } else if (gameState === 'POSITIONING') {
+    if (key === 'W') { gameState = 'SELECT_CARD'; renderHandCards(); }
+    else if (key === 'ARROWLEFT' || key === 'A') posX = snapToGrid(Math.max((activeMatrix[0].length * TILE_SIZE) / 2 + 6, posX - TILE_SIZE), activeMatrix[0].length);
+    else if (key === 'ARROWRIGHT' || key === 'D') posX = snapToGrid(Math.min(CANVAS_WIDTH - (activeMatrix[0].length * TILE_SIZE) / 2 - 6, posX + TILE_SIZE), activeMatrix[0].length);
+    else if (key === 'R') {
+      activeMatrix = rotateMatrixClockwise(activeMatrix);
+      posX = snapToGrid(posX, activeMatrix[0].length);
+      // 注意：這裡刻意不預測 posY（旋轉後的出生高度），因為它要依賴目前堆疊的真實高度，
+      // P2 本地並沒有在跑物理模擬、抓不到正確的堆疊資訊；posY 留給下一次主機廣播來校正即可，
+      // 落差通常在一個廣播週期內（約 30~60ms）就會被修正，不明顯。
+    }
+  }
+  drawFrame();
+}
+
+// 修正：加入 e.preventDefault 避免網頁捲動與干擾焦點
+window.addEventListener('keydown', (e) => {
+  const keyStr = e.key.toUpperCase();
+  const gameKeys = ['ARROWUP', 'ARROWDOWN', 'ARROWLEFT', 'ARROWRIGHT', ' ', 'ENTER', 'W', 'A', 'S', 'D', 'E', 'R'];
+
+  if (gameKeys.includes(keyStr) && e.target.tagName !== 'INPUT') {
+    e.preventDefault();
+  }
+
+  // P2 把指令送給 P1，同時（除了 E/Enter）在本地立即做客戶端預測
+  if (myRole === 'P2') {
+    if (currentPlayer === 2 && conn) {
+      try { conn.send({ type: 'KEY_INPUT', key: keyStr }); } catch (err) {}
+      if (keyStr !== 'E' && keyStr !== 'ENTER') {
+        handleLocalPredictionInput(keyStr);
+      }
+    }
+    return;
+  }
+
+  // P1 自己按鍵：丟給 Worker 處理，不在主執行緒直接算物理/遊戲邏輯
+  if (myRole === 'P1' && currentPlayer === 1 && physicsWorker) {
+    physicsWorker.postMessage({ type: 'KEY', key: keyStr });
+  }
+});
+
+function resetGame() { if (myRole === 'P1' && physicsWorker) physicsWorker.postMessage({ type: 'INIT' }); }
+
 function drawFrame() {
-  ctx.fillStyle = '#141417'; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  ctx.fillStyle = "#141417"; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  ctx.save(); ctx.strokeStyle = '#b71c1c'; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(0, 60); ctx.lineTo(CANVAS_WIDTH, 60); ctx.stroke(); ctx.restore();
 
-  if (myRole === 'P1') drawBodiesList(localBodies);
-  else if (myRole === 'P2') drawBodiesList(remoteBodies);
+  // P1、P2 現在用的是同一種「純資料」方塊格式（Worker 傳回來的，或網路同步過來的），
+  // 可以共用同一段繪製邏輯，不用再分開寫。
+  const bodiesToRender = myRole === 'P1' ? localBodies : (myRole === 'P2' ? getInterpolatedBodies() : []);
+  bodiesToRender.forEach(body => {
+    ctx.fillStyle = body.color || '#94a3b8'; ctx.strokeStyle = '#18181c'; ctx.lineWidth = 1;
+    if (body.tileGrid) { drawTileRun(ctx, body.x, body.y, body.angle, body.tileGrid.rows === 1 ? body.tileGrid.cols : body.tileGrid.rows, TILE_SIZE, body.tileGrid.rows !== 1); return; }
+    body.parts.forEach((part, index) => {
+      if (index === 0 && body.parts.length > 1) return;
+      if (part.tileCount) drawTileRun(ctx, part.x, part.y, body.angle, part.tileCount, TILE_SIZE, false);
+      else if (part.vertices) {
+        ctx.beginPath(); ctx.moveTo(part.vertices[0].x, part.vertices[0].y);
+        for (let j = 1; j < part.vertices.length; j++) ctx.lineTo(part.vertices[j].x, part.vertices[j].y);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    });
+  });
 
-  if (myRole === 'P1' && showPreview) {
-    ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = '#8ca1ab';
-    ctx.fillRect(posX - TILE_SIZE / 2, 60 - TILE_SIZE * BAR_ROWS / 2, TILE_SIZE, TILE_SIZE * BAR_ROWS);
-    ctx.restore();
-  } else if (myRole === 'P2' && remoteShowPreview) {
-    ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = '#8ca1ab';
-    ctx.fillRect(remotePosX - TILE_SIZE / 2, 60 - TILE_SIZE * BAR_ROWS / 2, TILE_SIZE, TILE_SIZE * BAR_ROWS);
-    ctx.restore();
+  if ((gameState === 'POSITIONING' || gameState === 'COUNTDOWN') && activeMatrix) {
+    drawMatrixToCanvas(ctx, activeMatrix, activeShape.color, posX, posY, TILE_SIZE, gameState === 'COUNTDOWN' ? 0.9 : 0.6, false);
+    const halfWidth = (activeMatrix[0].length * TILE_SIZE) / 2; const lineStartY = posY + (activeMatrix.length * TILE_SIZE) / 2;
+    ctx.save(); ctx.strokeStyle = '#333338'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(posX - halfWidth, lineStartY); ctx.lineTo(posX - halfWidth, CANVAS_HEIGHT); ctx.moveTo(posX + halfWidth, lineStartY); ctx.lineTo(posX + halfWidth, CANVAS_HEIGHT); ctx.stroke(); ctx.restore();
+    if (gameState === 'COUNTDOWN') { ctx.save(); ctx.font = 'bold 28px sans-serif'; ctx.fillStyle = '#e2e8f0'; ctx.textAlign = 'center'; ctx.fillText(countdownValue, posX, posY - (activeMatrix.length * TILE_SIZE) / 2 - 12); ctx.restore(); }
   }
 }
 
-// 主執行緒的 rAF 迴圈現在只負責「畫面渲染」，不再跑任何物理/廣播邏輯——
-// 這正是這個版本的重點：就算這個迴圈被瀏覽器節流到幾乎停擺，
-// Worker 裡的物理模擬跟廣播（透過 worker.onmessage 觸發）依然會持續進行。
+// 主執行緒的 rAF 迴圈現在只負責「畫面渲染」，不再跑任何物理/遊戲邏輯/廣播——
+// 就算這個迴圈被瀏覽器節流到幾乎停擺，P1 這邊 Worker 裡的物理模擬跟廣播
+// （透過 worker.onmessage 觸發）依然會持續進行，P2 那邊也一樣不受影響。
 function renderLoop() {
-  rafTickCount++;
-  logDiag();
   drawFrame();
   requestAnimationFrame(renderLoop);
 }
+
 requestAnimationFrame(renderLoop);
 </script>
 </body>
