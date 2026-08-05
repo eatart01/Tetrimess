@@ -120,11 +120,13 @@ function setupConnection() {
 }
 
 let broadcastCount = 0, rafTickCount = 0, receivedCount = 0;
+let remotePosX = CANVAS_WIDTH / 2, remoteShowPreview = false;
+
 function broadcastState() {
   if (myRole !== 'P1' || !conn) return;
   broadcastCount++;
   const snapshot = {
-    currentPlayer, statusMsg,
+    currentPlayer, statusMsg, posX, showPreview: !currentDropped,
     bodies: placedBodies.map(b => ({ id: b.id, x: Math.round(b.position.x * 10) / 10, y: Math.round(b.position.y * 10) / 10, angle: Math.round(b.angle * 100) / 100, tileGrid: b.tileGrid, isStatic: b.isStatic }))
   };
   try { conn.send({ type: 'SYNC', state: snapshot }); } catch (e) {}
@@ -132,6 +134,7 @@ function broadcastState() {
 function applySyncedState(state) {
   receivedCount++;
   currentPlayer = state.currentPlayer; statusMsg = state.statusMsg; remoteBodies = state.bodies;
+  remotePosX = state.posX; remoteShowPreview = state.showPreview;
   document.getElementById('statusText').innerText = statusMsg;
   logDiag(true);
 }
@@ -200,7 +203,14 @@ window.addEventListener('keydown', (e) => {
   if (!['ARROWLEFT', 'ARROWRIGHT', ' '].includes(k)) return;
 
   if (myRole === 'P2') {
-    if (currentPlayer === 2 && conn) { try { conn.send({ type: 'KEY_INPUT', key: k }); } catch (err) {} }
+    if (currentPlayer === 2 && conn) {
+      try { conn.send({ type: 'KEY_INPUT', key: k }); } catch (err) {}
+      // 客戶端預測：左右移動不涉及亂數/物理，本地立即套用，操作手感接近零延遲，
+      // 之後主機廣播回來的 posX 會自動覆蓋校正
+      if (k === 'ARROWLEFT') remotePosX = Math.max(TILE_SIZE, remotePosX - TILE_SIZE);
+      else if (k === 'ARROWRIGHT') remotePosX = Math.min(CANVAS_WIDTH - TILE_SIZE, remotePosX + TILE_SIZE);
+      drawFrame();
+    }
     return;
   }
   if (myRole === 'P1' && currentPlayer === 1) handleKey(k);
@@ -258,6 +268,10 @@ function drawFrame() {
   if (myRole === 'P1' && currentPlayer === 1 && !currentDropped) {
     ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = '#8ca1ab';
     ctx.fillRect(posX - TILE_SIZE / 2, 60 - TILE_SIZE * BAR_ROWS / 2, TILE_SIZE, TILE_SIZE * BAR_ROWS);
+    ctx.restore();
+  } else if (myRole === 'P2' && currentPlayer === 2 && remoteShowPreview) {
+    ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = '#8ca1ab';
+    ctx.fillRect(remotePosX - TILE_SIZE / 2, 60 - TILE_SIZE * BAR_ROWS / 2, TILE_SIZE, TILE_SIZE * BAR_ROWS);
     ctx.restore();
   }
 }
