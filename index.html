@@ -497,7 +497,6 @@ function joinRoom() {
 
 function setupConnection() {
   conn.on('open', () => {
-    console.log('[診斷] conn.on(open) 已觸發，myRole=' + myRole);
     if (document.activeElement) document.activeElement.blur();
     document.getElementById('lobbyOverlay').classList.remove('active');
     document.getElementById('p1Title').innerText = myRole === 'P1' ? '玩家 P1 (你)' : '玩家 P1 (藍)';
@@ -506,15 +505,14 @@ function setupConnection() {
   });
 
   conn.on('error', (err) => {
-    console.error('[診斷] conn 發生錯誤:', err);
+    console.error('連線發生錯誤:', err);
   });
 
   conn.on('close', () => {
-    console.warn('[診斷] conn 已關閉');
+    console.warn('連線已關閉');
   });
 
   conn.on('data', (data) => {
-    console.log('[診斷] conn.on(data) 收到資料，myRole=' + myRole + '，type=' + data.type);
     try {
       if (myRole === 'P1') {
         if (data.type === 'KEY_INPUT' && currentPlayer === 2 && physicsWorker) {
@@ -524,7 +522,7 @@ function setupConnection() {
         if (data.type === 'SYNC') applySyncedState(data.state);
       }
     } catch (err) {
-      console.error('[診斷] 處理收到的資料時發生例外:', err);
+      console.error('處理收到的資料時發生例外:', err);
     }
   });
 }
@@ -532,19 +530,14 @@ function setupConnection() {
 // 壓縮浮點數，解決網路塞車與延遲問題
 const roundNum = (num) => Math.round(num * 10) / 10;
 
-let broadcastLogCount = 0;
 function broadcastState() {
-  if (myRole !== 'P1' || !conn) return;
+  if (myRole !== 'P1' || !conn || !conn.open) return; // conn.open 還是 false 代表資料通道還沒真正打開，先跳過，下一次 tick 會自動補上
   const snapshot = {
     gameState, currentPlayer, playerDrops, sharedHand,
     posX: roundNum(posX), posY: roundNum(posY), activeMatrix, activeShape, countdownValue,
     selectedCardIndex, lastDropWarningMsg, hasTouched, touchTime, modalTitle, modalDesc,
     bodies: localBodies // Worker 傳回來時已經序列化、四捨五入過了，直接轉發即可
   };
-  broadcastLogCount++;
-  if (broadcastLogCount <= 5 || broadcastLogCount % 60 === 0) {
-    console.log('[診斷] broadcastState 第' + broadcastLogCount + '次，conn.open=' + conn.open + '，gameState=' + gameState + '，bodies數=' + localBodies.length);
-  }
   try { conn.send({ type: 'SYNC', state: snapshot }); } catch (e) { console.error('廣播失敗:', e); }
 }
 
