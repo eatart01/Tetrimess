@@ -504,7 +504,7 @@ function broadcastState() {
     selectedCardIndex, lastDropWarningMsg, hasTouched, touchTime, modalTitle, modalDesc,
     bodies: localBodies // Worker 傳回來時已經序列化、四捨五入過了，直接轉發即可
   };
-  try { conn.send({ type: 'SYNC', state: snapshot }); } catch (e) {}
+  try { conn.send({ type: 'SYNC', state: snapshot }); } catch (e) { console.error('廣播失敗:', e); }
 }
 
 // --- P2 端：物理搖晃內插補間 ---
@@ -697,7 +697,7 @@ window.addEventListener('keydown', (e) => {
   // P2 把指令送給 P1，同時（除了 E/Enter）在本地立即做客戶端預測
   if (myRole === 'P2') {
     if (currentPlayer === 2 && conn) {
-      try { conn.send({ type: 'KEY_INPUT', key: keyStr }); } catch (err) {}
+      try { conn.send({ type: 'KEY_INPUT', key: keyStr }); } catch (err) { console.error('送出按鍵失敗:', err); }
       if (keyStr !== 'E' && keyStr !== 'ENTER') {
         handleLocalPredictionInput(keyStr);
       }
