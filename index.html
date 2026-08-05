@@ -265,11 +265,11 @@ function drawFrame() {
     });
   }
 
-  if (myRole === 'P1' && currentPlayer === 1 && !currentDropped) {
+  if (myRole === 'P1' && !currentDropped) {
     ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = '#8ca1ab';
     ctx.fillRect(posX - TILE_SIZE / 2, 60 - TILE_SIZE * BAR_ROWS / 2, TILE_SIZE, TILE_SIZE * BAR_ROWS);
     ctx.restore();
-  } else if (myRole === 'P2' && currentPlayer === 2 && remoteShowPreview) {
+  } else if (myRole === 'P2' && remoteShowPreview) {
     ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = '#8ca1ab';
     ctx.fillRect(remotePosX - TILE_SIZE / 2, 60 - TILE_SIZE * BAR_ROWS / 2, TILE_SIZE, TILE_SIZE * BAR_ROWS);
     ctx.restore();
