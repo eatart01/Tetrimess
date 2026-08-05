@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>極簡 2D 雙人搖晃疊疊樂 - 線上連線版 (優化修正)</title>
+  <title>Tetrimess 疊過頭</title>
   <style>
     * {
       box-sizing: border-box;
@@ -116,7 +116,7 @@
 
   <!-- 大廳 Modal -->
   <div id="lobbyOverlay" class="modal-overlay active" style="z-index: 100;">
-    <div class="modal-title">線上對戰大廳</div>
+    <div class="modal-title">Tetrimess  疊過頭</div>
     <div class="modal-desc" id="lobbyStatus">請選擇建立房間，或是輸入朋友的房間 ID 連線</div>
     
     <div style="display:flex; flex-direction:column; gap:16px; align-items:center; margin-top:10px;">
@@ -133,7 +133,7 @@
     <!-- 左側欄 -->
     <div class="side-panel left">
       <div id="p1Card" class="player-card active-p1">
-        <div class="player-title" id="p1Title">玩家 P1 (藍)</div>
+        <div class="player-title" id="p1Title">玩家 P1</div>
         <div class="drop-status">掉落數量: <span id="p1ScoreBadge" class="drop-badge">0 / 11</span></div>
       </div>
       <div id="statusCard" class="status-card">選擇手牌中...</div>
@@ -161,7 +161,7 @@
     <!-- 右側欄 -->
     <div class="side-panel right">
       <div id="p2Card" class="player-card">
-        <div class="player-title" id="p2Title">玩家 P2 (橘)</div>
+        <div class="player-title" id="p2Title">玩家 P2</div>
         <div class="drop-status">掉落數量: <span id="p2ScoreBadge" class="drop-badge">0 / 11</span></div>
       </div>
       <div class="hand-container-vertical">
@@ -349,7 +349,39 @@ const WORKER_SOURCE = `
     const finalParts = parts.filter(p => !removeSet.has(p)).concat(verticalParts);
 
     const compoundBody = Body.create({ parts: finalParts, isStatic, friction: fr, frictionStatic: frS, frictionAir: sharedFrictionAir, restitution: 0, density: sharedDensity });
-    Body.setPosition(compoundBody, { x, y }); compoundBody.customColor = color; Composite.add(engine.world, compoundBody); return compoundBody;
+    // 不再呼叫 Body.setPosition：每個 part 在建立時，位置已經是用「外框中心 (x,y)」算好的絕對座標，
+    // Body.create 會自動用這些 part 算出正確的重心，不需要（也不應該）再對齊一次——
+    // Body.setPosition 對齊的是「重心」而不是「外框中心」，對不對稱形狀（例如J型旋轉後）會造成位移偏差。
+    compoundBody.customColor = color; Composite.add(engine.world, compoundBody); return compoundBody;
+  }
+
+  function createFragmentedBase() {
+    // 【純驗證用】把底座每一格都建立成完全獨立的靜態剛體，不合併，用來實測碎片化底座
+    // 會不會讓落在上面的方塊產生多重共面接觸的抖動。
+    const baseMatrix = [
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ];
+    const rows = baseMatrix.length, cols = baseMatrix[0].length;
+    const totalWidth = cols * TILE_SIZE;
+    const startX = CANVAS_WIDTH / 2 - totalWidth / 2 + TILE_SIZE / 2;
+    const bodies = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (baseMatrix[r][c] === 1) {
+          const px = startX + c * TILE_SIZE;
+          const py = INITIAL_BASE_Y - ((rows - 1) / 2 - r) * TILE_SIZE;
+          const cell = Bodies.rectangle(px, py, TILE_SIZE, TILE_SIZE, {
+            isStatic: true, friction: baseFriction, frictionStatic: baseFrictionStatic, frictionAir: sharedFrictionAir, restitution: 0
+          });
+          cell.customColor = '#546e7a';
+          cell.tileGrid = { rows: 1, cols: 1, tileSize: TILE_SIZE };
+          Composite.add(engine.world, cell);
+          bodies.push(cell);
+        }
+      }
+    }
+    return bodies;
   }
 
   function initGame() {
@@ -357,8 +389,7 @@ const WORKER_SOURCE = `
     currentPlayer = 1; playerDrops = { 1: 0, 2: 0 }; lastDropWarningMsg = ''; gameState = 'SELECT_CARD'; selectedCardIndex = 0; currentDroppedBody = null; hasTouched = false; stableSince = null; stabilitySnapshot = null; totalPlacementCount = 0; drawCount = 0; lastIDrawnAt = -Infinity; pendingDotCount = 0; drawsSinceLastDotPair = Infinity;
     modalTitle = ''; modalDesc = '';
     sharedHand = [getRandomShape(), getRandomShape(), getRandomShape(), getRandomShape(), getRandomShape()];
-    const initialBaseBody = createPhysicsBodyFromMatrix(CANVAS_WIDTH / 2, INITIAL_BASE_Y, [[1,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1]], '#546e7a', true);
-    placedBodies.push(initialBaseBody);
+    placedBodies.push(...createFragmentedBase());
   }
 
   function dropCurrentBlock() {
@@ -455,7 +486,10 @@ const WORKER_SOURCE = `
         b.friction = b.isStatic ? baseFriction : blockFriction;
         b.frictionStatic = b.isStatic ? baseFrictionStatic : blockFrictionStatic;
         b.frictionAir = sharedFrictionAir;
-        Body.setDensity(b, sharedDensity); // density 要用 Body.setDensity 才會連帶重算質量/轉動慣量
+        // 【修正已知 Matter.js bug】對 isStatic 的物體呼叫 Body.setDensity 會讓它的質量/慣性資料
+        // 被錯誤地重新計算成有限值（靜態物體理論上該是無限質量），導致疊在上面的東西行為異常甚至消失。
+        // 底座是唯一的靜態物體，這裡明確跳過，只對真正會動的方塊套用。
+        if (!b.isStatic) Body.setDensity(b, sharedDensity);
       });
     }
     else if (msg.type === 'SET_FORCED_SHAPE') {
@@ -688,8 +722,11 @@ function setupConnection() {
   conn.on('open', () => {
     if (document.activeElement) document.activeElement.blur();
     document.getElementById('lobbyOverlay').classList.remove('active');
-    document.getElementById('p1Title').innerText = myRole === 'P1' ? '玩家 P1 (你)' : '玩家 P1 (藍)';
-    document.getElementById('p2Title').innerText = myRole === 'P2' ? '玩家 P2 (你)' : '玩家 P2 (橘)';
+    
+    // 修改為不再顯示 (藍方) 或 (橘方)，且只標註 (你) 屬於哪一方
+    document.getElementById('p1Title').innerText = myRole === 'P1' ? '玩家 P1 (你)' : '玩家 P1';
+    document.getElementById('p2Title').innerText = myRole === 'P2' ? '玩家 P2 (你)' : '玩家 P2';
+    
     if (myRole === 'P2') document.getElementById('btnRestart').style.display = 'none';
   });
 
