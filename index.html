@@ -219,7 +219,7 @@
     <!-- 左側欄 -->
     <div class="side-panel left">
       <div style="display:flex; align-items:center; gap:8px;">
-        <div id="p1TurnTimer" class="turn-timer-badge" style="display:none;">15</div>
+        <div id="p1TurnTimer" class="turn-timer-badge" style="visibility:hidden;">15</div>
         <div id="p1Card" class="player-card active-p1" style="flex:1;">
           <div class="player-title" id="p1Title">玩家 P1</div>
           <div class="drop-status">掉落數量: <span id="p1ScoreBadge" class="drop-badge">0 / 11</span></div>
@@ -254,7 +254,7 @@
           <div class="player-title" id="p2Title">玩家 P2</div>
           <div class="drop-status">掉落數量: <span id="p2ScoreBadge" class="drop-badge">0 / 11</span></div>
         </div>
-        <div id="p2TurnTimer" class="turn-timer-badge" style="display:none;">15</div>
+        <div id="p2TurnTimer" class="turn-timer-badge" style="visibility:hidden;">15</div>
       </div>
       <div class="hand-container-vertical">
         <div class="card" id="card0"><canvas width="60" height="60"></canvas></div>
@@ -1131,6 +1131,8 @@ function updateUI() {
   }
 
   // 雙人掉落對決模式的回合限時倒數：只有輪到誰、誰那邊才顯示
+  // 用 visibility 而不是 display 切換：計時器永遠佔著同一塊版面空間，不管顯示與否，
+  // 這樣旁邊的玩家卡片寬度才不會跟著忽大忽小（這正是之前「卡片一直撐開去碰計時器」的根因）。
   const p1Timer = document.getElementById('p1TurnTimer');
   const p2Timer = document.getElementById('p2TurnTimer');
   if (gameMode === 'pvp-score' && (gameState === 'SELECT_CARD' || gameState === 'POSITIONING')) {
@@ -1139,13 +1141,13 @@ function updateUI() {
     const urgent = remainSec <= 5;
     const activeTimer = currentPlayer === 1 ? p1Timer : p2Timer;
     const idleTimer = currentPlayer === 1 ? p2Timer : p1Timer;
-    activeTimer.style.display = 'flex';
+    activeTimer.style.visibility = 'visible';
     activeTimer.innerText = remainSec;
     activeTimer.className = 'turn-timer-badge' + (urgent ? ' urgent' : '');
-    idleTimer.style.display = 'none';
+    idleTimer.style.visibility = 'hidden';
   } else {
-    p1Timer.style.display = 'none';
-    p2Timer.style.display = 'none';
+    p1Timer.style.visibility = 'hidden';
+    p2Timer.style.visibility = 'hidden';
   }
 }
 
