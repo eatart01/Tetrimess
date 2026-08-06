@@ -31,6 +31,7 @@
     .player-card { background: #18181c; border: 1px solid #27272a; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; transition: all 0.3s ease; }
     .player-card.active-p1 { border-color: #3b82f6; background: #1e293b; box-shadow: 0 0 12px rgba(59, 130, 246, 0.2); }
     .player-card.active-p2 { border-color: #f97316; background: #2a1b12; box-shadow: 0 0 12px rgba(249, 115, 22, 0.2); }
+    .player-card.player-card-disabled { opacity: 0.35; filter: grayscale(1); }
     .player-title { font-size: 1rem; font-weight: 700; color: #cbd5e1; }
     .drop-status { font-size: 0.8rem; color: #71717a; display: flex; align-items: center; gap: 6px; }
     .drop-badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; background: #27272a; color: #a1a1aa; }
@@ -63,7 +64,39 @@
     .btn-restart:hover { background: #4338ca; }
     
     .room-input { background: #18181c; border: 1px solid #3f3f46; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 0.95rem; outline: none; width: 180px; text-align: center; }
-    .room-input:focus { border-color: #3b82f6; }
+    .room-input:focus { border-color: #9ead9d; }
+
+    /* 大廳：黑底維持不變，但邊框/圖示/文字用遊戲內方塊的色調，不要用預設藍紫色系 */
+    .lobby-row { display: flex; flex-direction: row; align-items: flex-start; gap: 16px; margin-top: 18px; flex-wrap: wrap; justify-content: center; }
+    .mode-card {
+      background: #18181c; border: 2px solid #33322e; border-radius: 12px; padding: 16px 14px; width: 168px;
+      color: #e2e8f0; cursor: pointer; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px;
+      transition: all 0.15s;
+    }
+    .mode-card:hover { transform: translateY(-2px); filter: brightness(1.15); }
+    .mode-card.c-i { border-color: #8ca1ab; }
+    .mode-card.c-j { border-color: #78909c; }
+    .mode-card.c-t { border-color: #9ead9d; }
+    .mode-card.c-o { border-color: #af9a92; }
+    .mode-card.c-z { border-color: #cbbe93; }
+    .mode-card.c-s { border-color: #c6b7b2; }
+    .mode-name { font-weight: 700; font-size: 0.88rem; }
+    .mode-sub { font-size: 0.68rem; color: #a8a29e; line-height: 1.4; }
+    .mode-icon-blocks { display: flex; gap: 6px; align-items: center; justify-content: center; height: 44px; }
+
+    .mode-substack { display: none; flex-direction: column; gap: 10px; }
+    .mode-substack .mode-card { width: 190px; padding: 12px 12px; flex-direction: row; text-align: left; gap: 10px; }
+    .mode-substack .mode-card .mode-icon-blocks { height: 34px; flex-shrink: 0; }
+    .mode-substack .mode-card .mode-text { display: flex; flex-direction: column; gap: 2px; }
+
+    .connect-panel {
+      display: none; background: #18181c; border: 2px solid #c6b7b2; border-radius: 12px; padding: 16px;
+      width: 210px; align-items: center; text-align: center; gap: 10px; flex-direction: column;
+    }
+    .connect-panel .code-text { color: #cbbe93; font-size: 1.3rem; font-weight: 700; letter-spacing: 1px; }
+    .connect-panel .waiting-text { color: #a8a29e; font-size: 0.78rem; }
+    .btn-cancel { background: transparent; border: 1px solid #78443f; color: #e0918a; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.78rem; }
+    .btn-cancel:hover { background: #2a1414; }
 
     /* 複製按鈕樣式 */
     .btn-copy { background: #3f3f46; color: #e2e8f0; border: 1px solid #52525b; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
@@ -117,16 +150,60 @@
   <!-- 大廳 Modal -->
   <div id="lobbyOverlay" class="modal-overlay active" style="z-index: 100;">
     <div class="modal-title">Tetrimess 疊過頭</div>
-    <div class="modal-desc" id="lobbyStatus">請選擇建立房間，或是輸入朋友的房間 ID 連線</div>
-    
-    <div style="display:flex; flex-direction:column; gap:16px; align-items:center; margin-top:10px;">
-      <button class="btn-restart" onclick="createRoom()">建立房間 (我是 P1)</button>
-      
-      <div style="display:flex; gap:8px; align-items:center;">
-        <input type="text" id="roomInput" class="room-input" placeholder="輸入房間 ID">
-        <button class="btn-restart" style="background:#059669;" onclick="joinRoom()">加入房間 (我是 P2)</button>
+    <div class="modal-desc">選擇遊戲模式，或輸入朋友的房間 ID 連線</div>
+
+    <div class="lobby-row">
+      <button class="mode-card c-i" onclick="startSoloChallenge()">
+        <div class="mode-icon-blocks" id="iconSolo"></div>
+        <div class="mode-name">單人堆疊挑戰</div>
+        <div class="mode-sub">獨自一人，挑戰能疊多高</div>
+      </button>
+
+      <button class="mode-card c-j" id="createRoomTrigger" onclick="showModeSelectForRoom()">
+        <div class="mode-icon-blocks" id="iconCreateRoom"></div>
+        <div class="mode-name">建立房間 (我是 P1)</div>
+        <div class="mode-sub">選擇雙人模式，邀請朋友加入</div>
+      </button>
+
+      <div class="mode-substack" id="modeSubstack">
+        <button class="mode-card c-t" data-mode="coop" onclick="selectRoomMode('coop', this)">
+          <div class="mode-icon-blocks" id="iconCoop"></div>
+          <div class="mode-text">
+            <div class="mode-name">雙人堆疊合作</div>
+            <div class="mode-sub">共用 11 次掉落上限，一起疊高</div>
+          </div>
+        </button>
+        <button class="mode-card c-o" data-mode="pvp-drops" onclick="selectRoomMode('pvp-drops', this)">
+          <div class="mode-icon-blocks" id="iconPvpDrops"></div>
+          <div class="mode-text">
+            <div class="mode-name">雙人堆疊對決</div>
+            <div class="mode-sub">先累積掉落 11 次的人輸</div>
+          </div>
+        </button>
+        <button class="mode-card c-z" data-mode="pvp-score" onclick="selectRoomMode('pvp-score', this)">
+          <div class="mode-icon-blocks" id="iconPvpScore"></div>
+          <div class="mode-text">
+            <div class="mode-name">雙人掉落對決</div>
+            <div class="mode-sub">放置範圍縮小，依格數搶分，先達 35 分獲勝</div>
+          </div>
+        </button>
+      </div>
+
+      <div class="connect-panel" id="connectPanel">
+        <div style="font-size:0.75rem; color:#a8a29e;">房間代碼</div>
+        <div class="code-text" id="connectCodeText">------</div>
+        <button id="copyBtn" class="btn-copy" onclick="copyCurrentRoomId()">📋 複製 ID</button>
+        <div class="waiting-text">等待朋友連線中...</div>
+        <button class="btn-cancel" onclick="cancelRoomCreation()">取消建立遊戲</button>
       </div>
     </div>
+
+    <div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:24px;">
+      <input type="text" id="roomInput" class="room-input" placeholder="輸入房間 ID">
+      <button class="btn-restart" style="background:#059669;" onclick="joinRoom()">加入房間 (我是 P2)</button>
+    </div>
+
+    <div class="modal-desc" id="lobbyStatus" style="margin-top:16px;"></div>
   </div>
 
   <div class="layout-wrapper">
@@ -209,8 +286,10 @@ const WORKER_SOURCE = `
 
   const ADVANCED_SHAPE_NAMES = ['L', 'Plus', 'LongL']; const ADVANCED_SHAPE_UNLOCK_COUNT = 15; let totalPlacementCount = 0;
   const I_SHAPE_MIN_GAP = 5; let drawCount = 0; let lastIDrawnAt = -Infinity;
-  const DOT_PAIR_TRIGGER_WEIGHT = 1.3; const DOT_PAIR_MIN_GAP = 6; let pendingDotCount = 0;
+  const DOT_PAIR_TRIGGER_WEIGHT = 1; const DOT_PAIR_MIN_GAP = 6; let pendingDotCount = 0;
   let drawsSinceLastDotPair = Infinity; // 距離上一組單一格結束後，已經抽了幾次「其他形狀」（不含Dot本身）
+  const LIGHTNING_WEIGHT = 1.3; // S/Z（閃電符號）出現機率 +30%
+  function shapeWeight(s) { return (s.name === 'S' || s.name === 'Z') ? LIGHTNING_WEIGHT : 1; }
 
   const { Engine, Bodies, Composite, Body, Events } = Matter;
   const engine = Engine.create({ positionIterations: 18, velocityIterations: 18, enableSleeping: false, gravity: { x: 0, y: 1.2, scale: 0.001 } });
@@ -223,6 +302,11 @@ const WORKER_SOURCE = `
   let forcedShape = null; // 測試用：非null時，抽牌一律固定回傳這個形狀
 
   let currentPlayer = 1, gameState = 'SELECT_CARD', playerDrops = { 1: 0, 2: 0 }, lastDropWarningMsg = '';
+  let gameMode = 'pvp-drops'; // 'solo' | 'coop' | 'pvp-drops' | 'pvp-score'
+  let sharedDropCount = 0; // 雙人堆疊合作模式：共用掉落次數
+  let playerScores = { 1: 0, 2: 0 }; // 雙人掉落對決模式：依格數計分
+  const PVP_SCORE_TARGET = 35;
+  const MOVE_RANGE_SHRINK = 4 * TILE_SIZE; // 雙人掉落對決模式：左右可移動範圍各縮小4格
   let sharedHand = [], selectedCardIndex = 0, activeShape = null, activeMatrix = null;
   let posX = CANVAS_WIDTH / 2, posY = 200, countdownTimer = null, countdownValue = 3;
   let placedBodies = [], currentDroppedBody = null, hasTouched = false, touchTime = 0, stableSince = null;
@@ -255,11 +339,13 @@ const WORKER_SOURCE = `
     let normalPool = (totalPlacementCount >= ADVANCED_SHAPE_UNLOCK_COUNT ? SHAPES_DATABASE : SHAPES_DATABASE.filter(s => !ADVANCED_SHAPE_NAMES.includes(s.name))).filter(s => s.name !== 'Dot');
     if (drawCount - lastIDrawnAt < I_SHAPE_MIN_GAP) normalPool = normalPool.filter(s => s.name !== 'I');
     const dotPairAvailable = drawsSinceLastDotPair >= DOT_PAIR_MIN_GAP;
-    const totalWeight = normalPool.length + (dotPairAvailable ? DOT_PAIR_TRIGGER_WEIGHT : 0);
+    const normalPoolWeight = normalPool.reduce((sum, s) => sum + shapeWeight(s), 0);
+    const totalWeight = normalPoolWeight + (dotPairAvailable ? DOT_PAIR_TRIGGER_WEIGHT : 0);
     let roll = Math.random() * totalWeight;
     if (dotPairAvailable && roll < DOT_PAIR_TRIGGER_WEIGHT) { pendingDotCount = 1; return cloneShape(SHAPES_DATABASE.find(s => s.name === 'Dot')); }
     roll -= dotPairAvailable ? DOT_PAIR_TRIGGER_WEIGHT : 0;
-    const template = normalPool[Math.min(normalPool.length - 1, Math.floor(roll))];
+    let template = normalPool[normalPool.length - 1];
+    for (const s of normalPool) { const w = shapeWeight(s); if (roll < w) { template = s; break; } roll -= w; }
     if (template.name === 'I') lastIDrawnAt = drawCount;
     drawsSinceLastDotPair++;
     return cloneShape(template);
@@ -384,9 +470,10 @@ const WORKER_SOURCE = `
     return bodies;
   }
 
-  function initGame() {
+  function initGame(mode) {
+    gameMode = mode || gameMode || 'pvp-drops';
     placedBodies.forEach(b => Composite.remove(engine.world, b)); placedBodies = [];
-    currentPlayer = 1; playerDrops = { 1: 0, 2: 0 }; lastDropWarningMsg = ''; gameState = 'SELECT_CARD'; selectedCardIndex = 0; currentDroppedBody = null; hasTouched = false; stableSince = null; stabilitySnapshot = null; totalPlacementCount = 0; drawCount = 0; lastIDrawnAt = -Infinity; pendingDotCount = 0; drawsSinceLastDotPair = Infinity;
+    currentPlayer = 1; playerDrops = { 1: 0, 2: 0 }; sharedDropCount = 0; playerScores = { 1: 0, 2: 0 }; lastDropWarningMsg = ''; gameState = 'SELECT_CARD'; selectedCardIndex = 0; currentDroppedBody = null; hasTouched = false; stableSince = null; stabilitySnapshot = null; totalPlacementCount = 0; drawCount = 0; lastIDrawnAt = -Infinity; pendingDotCount = 0; drawsSinceLastDotPair = Infinity;
     modalTitle = ''; modalDesc = '';
     sharedHand = [getRandomShape(), getRandomShape(), getRandomShape(), getRandomShape(), getRandomShape()];
     placedBodies.push(...createFragmentedBase());
@@ -394,13 +481,30 @@ const WORKER_SOURCE = `
 
   function dropCurrentBlock() {
     gameState = 'DROP_WAIT'; hasTouched = false; touchTime = 0; stableSince = null; stabilitySnapshot = null; totalPlacementCount++;
+    if (gameMode === 'pvp-score') {
+      let cellCount = 0;
+      activeMatrix.forEach(row => row.forEach(v => { if (v === 1) cellCount++; }));
+      playerScores[currentPlayer] += cellCount;
+    }
     currentDroppedBody = createPhysicsBodyFromMatrix(posX, posY, activeMatrix, activeShape.color, false); placedBodies.push(currentDroppedBody);
   }
 
   function processFallenBlocks() {
     const fallen = [];
     placedBodies = placedBodies.filter(b => { if (b.position.y > CANVAS_HEIGHT + 30 || b.position.x < -80 || b.position.x > CANVAS_WIDTH + 80) { fallen.push(b); Composite.remove(engine.world, b); return false; } return true; });
-    if (fallen.length > 0) {
+    if (fallen.length === 0) return;
+
+    if (gameMode === 'solo') {
+      playerDrops[1] += fallen.length;
+      if (gameState !== 'GAME_OVER' && playerDrops[1] >= 11) endGame('挑戰結束', '累積掉落 11 個方塊，總共成功放置了 ' + Math.max(0, totalPlacementCount - playerDrops[1]) + ' 顆！');
+      else lastDropWarningMsg = '⚠️ 方塊掉落！(累積 ' + playerDrops[1] + '/11 個)';
+    } else if (gameMode === 'coop') {
+      sharedDropCount += fallen.length;
+      if (gameState !== 'GAME_OVER' && sharedDropCount >= 11) endGame('合作失敗', '雙方共同累積掉落達到 11 個上限！');
+      else lastDropWarningMsg = '⚠️ 方塊掉落！(雙方共同累積 ' + sharedDropCount + '/11 個)';
+    } else if (gameMode === 'pvp-score') {
+      lastDropWarningMsg = '⚠️ P' + currentPlayer + ' 方塊掉落！';
+    } else {
       playerDrops[currentPlayer] += fallen.length;
       if (gameState !== 'GAME_OVER' && playerDrops[currentPlayer] >= 11) endGame('P' + (currentPlayer === 1 ? 2 : 1) + ' 獲勝！', 'P' + currentPlayer + ' 累積掉落 11 個方塊達到上限！');
       else lastDropWarningMsg = '⚠️ P' + currentPlayer + ' 方塊掉落！(累積 ' + playerDrops[currentPlayer] + '/11 個)';
@@ -410,8 +514,15 @@ const WORKER_SOURCE = `
   function finishTurn() {
     if (gameState === 'GAME_OVER') return;
     currentDroppedBody = null; hasTouched = false;
-    if (getHighestY() <= 60) { endGame('平局！', '雙方防守極為出色，積木塔已堆疊至頂端！'); return; }
-    currentPlayer = currentPlayer === 1 ? 2 : 1; selectedCardIndex = 0; gameState = 'SELECT_CARD';
+    if (getHighestY() <= 60) { endGame('平局！', '積木塔已堆疊至頂端！'); return; }
+
+    if (gameMode === 'pvp-score' && playerScores[currentPlayer] >= PVP_SCORE_TARGET) {
+      endGame('P' + currentPlayer + ' 獲勝！', 'P' + currentPlayer + ' 達成 ' + PVP_SCORE_TARGET + ' 分！');
+      return;
+    }
+
+    if (gameMode !== 'solo') currentPlayer = currentPlayer === 1 ? 2 : 1;
+    selectedCardIndex = 0; gameState = 'SELECT_CARD';
   }
 
   function endGame(title, desc) { gameState = 'GAME_OVER'; modalTitle = title; modalDesc = desc; }
@@ -427,9 +538,10 @@ const WORKER_SOURCE = `
         sharedHand[chosenIndex] = sharedHand[3]; sharedHand[3] = sharedHand[4]; sharedHand[4] = getRandomShape();
       }
     } else if (gameState === 'POSITIONING') {
-      if (key === 'ARROWLEFT' || key === 'A') posX = snapToGrid(Math.max((activeMatrix[0].length * TILE_SIZE) / 2 + 6, posX - TILE_SIZE), activeMatrix[0].length);
-      else if (key === 'ARROWRIGHT' || key === 'D') posX = snapToGrid(Math.min(CANVAS_WIDTH - (activeMatrix[0].length * TILE_SIZE) / 2 - 6, posX + TILE_SIZE), activeMatrix[0].length);
-      else if (key === 'R') { activeMatrix = rotateMatrixClockwise(activeMatrix); posX = snapToGrid(posX, activeMatrix[0].length); updateSpawnY(); }
+      const shrink = (gameMode === 'pvp-score') ? MOVE_RANGE_SHRINK : 0;
+      if (key === 'ARROWLEFT' || key === 'A') posX = snapToGrid(Math.max((activeMatrix[0].length * TILE_SIZE) / 2 + 6 + shrink, posX - TILE_SIZE), activeMatrix[0].length);
+      else if (key === 'ARROWRIGHT' || key === 'D') posX = snapToGrid(Math.min(CANVAS_WIDTH - (activeMatrix[0].length * TILE_SIZE) / 2 - 6 - shrink, posX + TILE_SIZE), activeMatrix[0].length);
+      else if (key === 'R') { activeMatrix = rotateMatrixClockwise(activeMatrix); posX = snapToGrid(Math.min(Math.max(posX, (activeMatrix[0].length * TILE_SIZE) / 2 + 6 + shrink), CANVAS_WIDTH - (activeMatrix[0].length * TILE_SIZE) / 2 - 6 - shrink), activeMatrix[0].length); updateSpawnY(); }
       else if (key === 'E' || key === 'ENTER') { dropCurrentBlock(); }
     }
   }
@@ -453,6 +565,7 @@ const WORKER_SOURCE = `
       gameState, currentPlayer, playerDrops, sharedHand, activeMatrix, activeShape,
       posX, posY, countdownValue, selectedCardIndex, lastDropWarningMsg,
       hasTouched, touchTime, modalTitle, modalDesc,
+      gameMode, sharedDropCount, playerScores,
       bodies: placedBodies.map(b => ({
         id: b.id,
         x: Math.round(b.position.x * 10) / 10, y: Math.round(b.position.y * 10) / 10,
@@ -468,7 +581,7 @@ const WORKER_SOURCE = `
 
   self.onmessage = (e) => {
     const msg = e.data;
-    if (msg.type === 'INIT') initGame();
+    if (msg.type === 'INIT') initGame(msg.mode);
     else if (msg.type === 'KEY') handleGameInput(msg.key);
     else if (msg.type === 'SET_FRICTION') {
       baseFriction = msg.baseFriction; baseFrictionStatic = msg.baseFrictionStatic;
@@ -534,6 +647,7 @@ function createPhysicsWorker() {
     posX = s.posX; posY = s.posY; countdownValue = s.countdownValue; selectedCardIndex = s.selectedCardIndex;
     lastDropWarningMsg = s.lastDropWarningMsg; hasTouched = s.hasTouched; touchTime = s.touchTime;
     modalTitle = s.modalTitle; modalDesc = s.modalDesc;
+    gameMode = s.gameMode; sharedDropCount = s.sharedDropCount; playerScores = s.playerScores;
     localBodies = s.bodies;
 
     if (gameState === 'GAME_OVER') showModal(s.modalTitle, s.modalDesc);
@@ -600,30 +714,72 @@ function fallbackCopy(text, onSuccess) {
   document.body.removeChild(textarea);
 }
 
-function createRoom() {
-  document.activeElement.blur();
+let selectedRoomMode = 'pvp-drops';
+let currentRoomId = '';
+const MODE_NAMES = { 'coop': '雙人堆疊合作', 'pvp-drops': '雙人堆疊對決', 'pvp-score': '雙人掉落對決' };
+
+function createRoom(mode) {
+  selectedRoomMode = mode || 'pvp-drops';
   const roomId = 'stack-' + Math.floor(1000 + Math.random() * 9000);
+  currentRoomId = roomId;
   peer = new Peer(roomId);
   myRole = 'P1';
   createPhysicsWorker();
 
-  document.getElementById('lobbyStatus').innerText = '正在建立房間...';
+  document.getElementById('connectCodeText').innerText = '連線中...';
 
   peer.on('open', (id) => {
-    document.getElementById('lobbyStatus').innerHTML =
-      `房間建立成功！請將下方 ID 傳給 P2 朋友：<br>` +
-      `<div style="display:flex; justify-content:center; align-items:center; gap:12px; margin-top:16px;">` +
-        `<span style="color:#38bdf8; font-size:1.6rem; font-weight:bold; letter-spacing:1px;">${id}</span>` +
-        `<button id="copyBtn" class="btn-copy" onclick="copyRoomId('${id}')">📋 複製 ID</button>` +
-      `</div><div style="margin-top:16px; font-size:0.85rem; color:#71717a;">等待朋友連線中...</div>`;
+    currentRoomId = id;
+    document.getElementById('connectCodeText').innerText = id;
   });
 
   peer.on('connection', (c) => {
     conn = c;
     setupConnection();
     document.getElementById('lobbyOverlay').classList.remove('active');
-    physicsWorker.postMessage({ type: 'INIT' });
+    physicsWorker.postMessage({ type: 'INIT', mode: selectedRoomMode });
   });
+
+  peer.on('error', (err) => {
+    document.getElementById('connectCodeText').innerText = '建立失敗';
+  });
+}
+
+function startSoloChallenge() {
+  document.activeElement.blur();
+  myRole = 'P1';
+  createPhysicsWorker();
+  document.getElementById('lobbyOverlay').classList.remove('active');
+  document.getElementById('p1Title').innerText = '玩家 P1 (你)';
+  document.getElementById('p2Title').innerText = '玩家 P2';
+  physicsWorker.postMessage({ type: 'INIT', mode: 'solo' });
+}
+
+function showModeSelectForRoom() {
+  document.activeElement.blur();
+  document.getElementById('createRoomTrigger').style.display = 'none';
+  document.getElementById('modeSubstack').style.display = 'flex';
+}
+
+function selectRoomMode(mode, btnEl) {
+  document.activeElement.blur();
+  // 只保留被選到的那個，其餘兩個先隱藏，讓連線面板緊鄰著顯示在它右邊
+  [...document.getElementById('modeSubstack').children].forEach(el => { if (el !== btnEl) el.style.display = 'none'; });
+  document.getElementById('connectPanel').style.display = 'flex';
+  createRoom(mode);
+}
+
+function copyCurrentRoomId() { copyRoomId(currentRoomId); }
+
+function cancelRoomCreation() {
+  // 中止建房流程，關閉連線、重置畫面回到最一開始的樣子
+  try { if (conn) conn.close(); } catch (e) {}
+  try { if (peer) peer.destroy(); } catch (e) {}
+  peer = null; conn = null; myRole = null; physicsWorker = null;
+  document.getElementById('connectPanel').style.display = 'none';
+  document.getElementById('modeSubstack').style.display = 'none';
+  [...document.getElementById('modeSubstack').children].forEach(el => { el.style.display = 'flex'; });
+  document.getElementById('createRoomTrigger').style.display = 'flex';
 }
 
 let isSoloTestMode = false;
@@ -755,6 +911,7 @@ function broadcastState() {
     gameState, currentPlayer, playerDrops, sharedHand,
     posX: roundNum(posX), posY: roundNum(posY), activeMatrix, activeShape, countdownValue,
     selectedCardIndex, lastDropWarningMsg, hasTouched, touchTime, modalTitle, modalDesc,
+    gameMode, sharedDropCount, playerScores,
     bodies: localBodies // Worker 傳回來時已經序列化、四捨五入過了，直接轉發即可
   };
   try { conn.send({ type: 'SYNC', state: snapshot }); } catch (e) { console.error('廣播失敗:', e); }
@@ -812,6 +969,7 @@ function applySyncedState(state) {
   activeShape = state.activeShape; countdownValue = state.countdownValue;
   selectedCardIndex = state.selectedCardIndex; lastDropWarningMsg = state.lastDropWarningMsg;
   hasTouched = state.hasTouched; touchTime = state.touchTime;
+  gameMode = state.gameMode; sharedDropCount = state.sharedDropCount; playerScores = state.playerScores;
   remoteBodies = state.bodies;
   prevSnapshot = currSnapshot;
   currSnapshot = { time: performance.now(), bodies: state.bodies };
@@ -835,6 +993,7 @@ let sharedHand = [], selectedCardIndex = 0, activeShape = null, activeMatrix = n
 let posX = CANVAS_WIDTH / 2, posY = 200, countdownValue = 3;
 let hasTouched = false, touchTime = 0;
 let modalTitle = '', modalDesc = ''; // 修正：之前沒宣告，導致意外抓到同名的 <div id="modalTitle"> DOM 元素
+let gameMode = 'pvp-drops', sharedDropCount = 0, playerScores = { 1: 0, 2: 0 };
 let localBodies = []; // P1 端：從 Worker 鏡像過來的方塊列表
 
 function snapToGrid(px, cols) { const hw = (cols * TILE_SIZE) / 2; const le = px - hw; const sle = BASE_LEFT_X + Math.round((le - BASE_LEFT_X) / TILE_SIZE) * TILE_SIZE; return sle + hw; }
@@ -847,11 +1006,35 @@ function rotateMatrixClockwise(matrix) {
 
 function updateUI() {
   document.getElementById('p1Card').className = `player-card ${currentPlayer === 1 ? 'active-p1' : ''}`;
-  document.getElementById('p1ScoreBadge').innerText = `${playerDrops[1]} / 11`;
-  document.getElementById('p1ScoreBadge').className = `drop-badge ${playerDrops[1] > 0 ? 'warn' : ''}`;
-  document.getElementById('p2Card').className = `player-card ${currentPlayer === 2 ? 'active-p2' : ''}`;
-  document.getElementById('p2ScoreBadge').innerText = `${playerDrops[2]} / 11`;
-  document.getElementById('p2ScoreBadge').className = `drop-badge ${playerDrops[2] > 0 ? 'warn' : ''}`;
+  const p1Badge = document.getElementById('p1ScoreBadge');
+  const p2Card = document.getElementById('p2Card');
+  const p2Badge = document.getElementById('p2ScoreBadge');
+
+  if (gameMode === 'solo') {
+    p1Badge.innerText = `${playerDrops[1]} / 11`;
+    p1Badge.className = `drop-badge ${playerDrops[1] > 0 ? 'warn' : ''}`;
+    p2Card.className = 'player-card player-card-disabled';
+    p2Badge.innerText = '－';
+    p2Badge.className = 'drop-badge';
+  } else if (gameMode === 'coop') {
+    p1Badge.innerText = `${sharedDropCount} / 11`;
+    p1Badge.className = `drop-badge ${sharedDropCount > 0 ? 'warn' : ''}`;
+    p2Card.className = `player-card ${currentPlayer === 2 ? 'active-p2' : ''}`;
+    p2Badge.innerText = `${sharedDropCount} / 11`;
+    p2Badge.className = `drop-badge ${sharedDropCount > 0 ? 'warn' : ''}`;
+  } else if (gameMode === 'pvp-score') {
+    p1Badge.innerText = `${playerScores[1]} / ${'35'}`;
+    p1Badge.className = 'drop-badge';
+    p2Card.className = `player-card ${currentPlayer === 2 ? 'active-p2' : ''}`;
+    p2Badge.innerText = `${playerScores[2]} / 35`;
+    p2Badge.className = 'drop-badge';
+  } else {
+    p1Badge.innerText = `${playerDrops[1]} / 11`;
+    p1Badge.className = `drop-badge ${playerDrops[1] > 0 ? 'warn' : ''}`;
+    p2Card.className = `player-card ${currentPlayer === 2 ? 'active-p2' : ''}`;
+    p2Badge.innerText = `${playerDrops[2]} / 11`;
+    p2Badge.className = `drop-badge ${playerDrops[2] > 0 ? 'warn' : ''}`;
+  }
 
   const statusCard = document.getElementById('statusCard');
   if (lastDropWarningMsg) statusCard.innerHTML = `<span class="warning-msg">${lastDropWarningMsg}</span>`;
@@ -1012,6 +1195,36 @@ function renderLoop() {
 }
 
 requestAnimationFrame(renderLoop);
+
+// --- 大廳圖示：用遊戲內「閃電型」方塊（S型旋轉成直向）的實際造型畫出來，不用網路表情符號 ---
+const LOBBY_LIGHTNING_MATRIX = [[1, 0], [1, 1], [0, 1]]; // S 型旋轉後的直向閃電形狀
+function renderLobbyLightningIcon(containerId, color, size = 9) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const grid = document.createElement('div');
+  grid.style.display = 'grid';
+  grid.style.gridTemplateColumns = `repeat(2, ${size}px)`;
+  grid.style.gridTemplateRows = `repeat(3, ${size}px)`;
+  grid.style.gap = '1px';
+  LOBBY_LIGHTNING_MATRIX.forEach((row, r) => row.forEach((v, c) => {
+    if (v === 1) {
+      const cell = document.createElement('div');
+      cell.style.background = color; cell.style.border = '1px solid #18181c';
+      cell.style.gridColumn = (c + 1) + ' / span 1'; cell.style.gridRow = (r + 1) + ' / span 1';
+      grid.appendChild(cell);
+    }
+  }));
+  el.appendChild(grid);
+}
+function renderLobbyTwoLightning(containerId, colorA, colorB) {
+  renderLobbyLightningIcon(containerId, colorA);
+  renderLobbyLightningIcon(containerId, colorB);
+}
+renderLobbyLightningIcon('iconSolo', '#c6b7b2', 11);
+renderLobbyTwoLightning('iconCreateRoom', '#c6b7b2', '#cbbe93');
+renderLobbyTwoLightning('iconCoop', '#c6b7b2', '#cbbe93');
+renderLobbyTwoLightning('iconPvpDrops', '#c6b7b2', '#cbbe93');
+renderLobbyTwoLightning('iconPvpScore', '#c6b7b2', '#cbbe93');
 </script>
 
 <div id="frictionTunePanel">
