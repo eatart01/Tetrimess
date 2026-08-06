@@ -782,6 +782,19 @@ let selectedRoomMode = null;
 let currentRoomId = '';
 const MODE_NAMES = { 'coop': '雙人堆疊合作', 'pvp-drops': '雙人堆疊對決', 'pvp-score': '雙人掉落對決' };
 
+// 統一的連線狀態清理：任何會開始一段新連線流程（建房/加入/單人）的入口，
+// 都要先呼叫這個，確保不會有殘留的舊 Worker、舊連線還在背景搶著更新畫面。
+// 關鍵是 physicsWorker.terminate()——之前有些地方只是把變數設成 null，
+// 但背景那個 Worker 執行緒沒有真的被停止，還是會繼續跑、繼續呼叫 updateUI()/drawFrame()，
+// 跟後來真正建立的連線互相打架，就是「兩個網頁互相建房又加入」會閃爍的根本原因。
+function resetConnectionState() {
+  try { if (physicsWorker) physicsWorker.terminate(); } catch (e) {}
+  try { if (conn) conn.close(); } catch (e) {}
+  try { if (peer) peer.destroy(); } catch (e) {}
+  physicsWorker = null; conn = null; peer = null; myRole = null;
+  isSoloTestMode = false;
+}
+
 function renderConnectPanel(mode, code) {
   const panel = document.getElementById('connectPanel');
   if (mode === null) {
@@ -830,6 +843,7 @@ function createRoom(mode) {
 
 function startSoloChallenge() {
   document.activeElement.blur();
+  resetConnectionState();
   myRole = 'P1';
   createPhysicsWorker();
   document.getElementById('lobbyOverlay').classList.remove('active');
@@ -842,12 +856,7 @@ function selectRoomMode(mode, btnEl) {
   document.activeElement.blur();
   if (selectedRoomMode === mode) return; // 重複點同一個模式，什麼都不做
 
-  if (selectedRoomMode !== null) {
-    // 已經選過別的模式、正在建房或等待中，先關掉舊的連線再重建新的
-    try { if (conn) conn.close(); } catch (e) {}
-    try { if (peer) peer.destroy(); } catch (e) {}
-    peer = null; conn = null; myRole = null; physicsWorker = null;
-  }
+  resetConnectionState(); // 不管前面是建過房、加入過別人、還是單人測試過，一律先徹底清乾淨
 
   [...document.getElementById('modeSubstack').children].forEach(el => el.classList.toggle('selected', el === btnEl));
   renderConnectPanel(mode, null);
@@ -857,10 +866,7 @@ function selectRoomMode(mode, btnEl) {
 function copyCurrentRoomId() { copyRoomId(currentRoomId); }
 
 function cancelRoomCreation() {
-  // 中止建房流程，關閉連線、把連線面板跟模式選取狀態都重置回完全空白
-  try { if (conn) conn.close(); } catch (e) {}
-  try { if (peer) peer.destroy(); } catch (e) {}
-  peer = null; conn = null; myRole = null; physicsWorker = null;
+  resetConnectionState();
   selectedRoomMode = null;
   [...document.getElementById('modeSubstack').children].forEach(el => el.classList.remove('selected'));
   renderConnectPanel(null);
@@ -869,6 +875,7 @@ function cancelRoomCreation() {
 let isSoloTestMode = false;
 
 function enterSoloTestMode() {
+  resetConnectionState();
   isSoloTestMode = true;
   myRole = 'P1';
   createPhysicsWorker();
@@ -916,6 +923,7 @@ function toggleJTestMode() {
 }
 
 function enterFrictionTuningMode() {
+  resetConnectionState();
   isSoloTestMode = true;
   myRole = 'P1';
   createPhysicsWorker();
@@ -939,6 +947,7 @@ function joinRoom() {
   }
   if (!targetId) return alert('請輸入房間 ID');
 
+  resetConnectionState(); // 關鍵：如果這個分頁之前建過房、還沒清掉，這裡先徹底清乾淨再加入
   peer = new Peer();
   myRole = 'P2';
   document.getElementById('lobbyStatus').innerText = '正在連線至房間...';
