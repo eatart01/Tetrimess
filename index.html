@@ -22,7 +22,7 @@
       width: 100vw;
       overflow: hidden;
       padding-top: 16px;
-      touch-action: manipulation; /* 防止手機雙擊放大 */
+      touch-action: manipulation;
     }
 
     .layout-wrapper { display: flex; flex-direction: row; align-items: flex-start; justify-content: center; gap: 28px; max-height: 95vh; }
@@ -115,82 +115,89 @@
     .btn-copy:hover { background: #52525b; color: #fff; }
 
     /* ========================================================
-       新設計：虛擬控制列 (固定在遊戲畫布上方 11% 處)
+       手機版：4個扁平長方按鈕 (置於手牌上方、遊玩區下方，絕不壓底座)
     ======================================================== */
-    #virtual-controls {
-      display: none; position: absolute; bottom: 11%; left: 0; width: 100%;
-      padding: 0 15px; box-sizing: border-box; z-index: 50;
-      justify-content: space-between; align-items: center;
-      pointer-events: none; /* 讓空隙可以點擊穿透 */
+    #mobile-controls {
+      display: none; width: 100%; max-width: 440px; 
+      display: none; grid-template-columns: repeat(4, 1fr); gap: 6px; 
+      margin: 6px 0; z-index: 50; touch-action: none;
     }
     
-    .vc-left-zone, .vc-right-zone { 
-      display: flex; gap: 15px; 
-      pointer-events: auto; /* 按鈕區域恢復點擊 */
+    .mc-btn {
+      background: rgba(63, 63, 70, 0.9); border: 1px solid #71717a; border-radius: 8px;
+      color: white; font-size: 1.1rem; font-weight: bold; height: 44px;
+      display: flex; align-items: center; justify-content: center;
+      user-select: none; touch-action: manipulation; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
+    .mc-btn:active { background: #52525b; transform: scale(0.96); }
+    .mc-btn.mc-action { background: rgba(59, 130, 246, 0.9); border-color: #2563eb; }
+    .mc-btn.mc-action:active { background: #2563eb; }
 
-    .vc-btn {
-      width: 55px; height: 55px;
-      background: rgba(63, 63, 70, 0.85); border: 2px solid #71717a; border-radius: 50%;
-      color: white; font-size: 1.6rem; font-weight: bold; display: flex; align-items: center; justify-content: center;
-      user-select: none; touch-action: manipulation; box-shadow: 0 4px 6px rgba(0,0,0,0.4);
-    }
-    .vc-btn:active { background: #52525b; transform: scale(0.92); box-shadow: 0 1px 3px rgba(0,0,0,0.6); }
-    .vc-btn.btn-action { background: rgba(59, 130, 246, 0.85); border-color: #2563eb; }
-    .vc-btn.btn-action:active { background: #2563eb; }
-
-    /* 懸浮工具列 (全螢幕) */
+    /* 左上角縮小全螢幕按鈕 */
     #floating-tools {
-      display: none; position: fixed; left: 10px; top: 50%; transform: translateY(-50%);
-      flex-direction: column; gap: 15px; z-index: 60;
+      display: none; position: fixed; left: 8px; top: 8px; z-index: 60;
     }
     .float-btn {
-      width: 44px; height: 44px; border-radius: 50%; background: rgba(24, 24, 28, 0.6);
-      border: 2px solid #3f3f46; color: white; font-size: 1.2rem; display: flex; align-items: center; justify-content: center;
-      cursor: pointer; user-select: none; touch-action: manipulation; backdrop-filter: blur(4px); box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      width: 32px; height: 32px; border-radius: 50%; background: rgba(24, 24, 28, 0.7);
+      border: 1px solid #3f3f46; color: white; font-size: 0.9rem; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; user-select: none; touch-action: manipulation; backdrop-filter: blur(4px); box-shadow: 0 2px 6px rgba(0,0,0,0.5);
     }
     .float-btn:active { background: #3f3f46; }
 
     /* ========================================================
-       響應式設計：小於 800px 時轉換為手機直式版面
+       響應式設計：小於 800px 時套用全新的手機直式上下排序
     ======================================================== */
     @media (max-width: 800px) {
-      /* 開啟手機端工具 */
-      #virtual-controls { display: flex; }
+      #mobile-controls { display: grid; }
       #floating-tools { display: flex; }
 
-      body { padding: 5px; height: 100vh; background-color: #000; }
+      body { padding: 4px; height: 100vh; background-color: #000; overflow: hidden; }
       .layout-wrapper { 
         flex-direction: column; 
         align-items: center; 
-        gap: 8px; 
-        height: calc(100vh - 10px); 
+        gap: 4px; 
+        height: 100vh; 
         width: 100vw;
-        padding: 0 10px;
+        padding: 0 6px;
       }
       
-      .side-panel { width: 100%; flex-direction: column; gap: 6px; }
+      .side-panel { width: 100%; flex-direction: column; gap: 4px; }
       
-      /* 新排版：P1 最上 -> P2 與手牌 -> 遊戲區 */
-      .side-panel.left { order: 1; }
-      .side-panel.right { order: 2; }
-      .center-panel { order: 3; flex: 1; min-height: 0; width: 100%; display: flex; justify-content: center; align-items: center; padding: 0;}
+      /* 依需求重新排序：
+         1. 遊戲畫布在最上方
+         2. 4個控制按鈕
+         3. 5選3手牌區
+         4. P1 (You) 橫條
+         5. P2 橫條在最下方
+      */
+      .center-panel { order: 1; width: 100%; display: flex; justify-content: center; align-items: center; padding: 0;}
+      .side-panel.left { order: 4; } /* P1 資訊列放下面 */
+      .side-panel.right { order: 2; } /* 手牌與 P2 相關合輯拆開：我們用內部子項目調整 */
 
-      /* 遊戲畫面自動縮放完美適應手機寬度，且按鈕會跟著畫布比例等比抬升 */
-      .game-container { height: 100%; max-height: 100%; width: auto; max-width: 100%; aspect-ratio: 440/600; display: flex; justify-content: center; align-items: center; margin: 0 auto;}
-      canvas { width: auto; height: 100%; max-width: 100%; object-fit: contain; }
-
-      /* 卡片水平排列 */
-      .hand-container-vertical { flex-direction: row; justify-content: center; width: 100%; gap: 6px;}
-      .card { width: 44px; height: 44px; }
+      /* 為了精準控制順序，我們把右側面板的內容拆開對齊 */
+      .side-panel.right { display: flex; flex-direction: column; width: 100%; }
+      
+      /* 把手牌區提升到按鈕下方、P1上方 */
+      .hand-container-vertical { 
+        order: -1; /* 讓手牌優先排在最前面（即按鈕下方） */
+        flex-direction: row; justify-content: center; width: 100%; gap: 6px; margin: 2px 0;
+      }
+      .card { width: 40px; height: 40px; }
       .card canvas { width: 100%; height: 100%; }
 
-      /* 壓縮玩家名牌尺寸 */
-      .player-card { flex-direction: row; justify-content: space-between; align-items: center; padding: 8px 12px;}
-      .player-title { font-size: 0.9rem; margin-bottom: 0; }
-      .turn-timer-badge { width: 34px; height: 34px; font-size: 0.9rem;}
+      /* P2 橫條強制放在最下方，P1 在 P2 上方 */
+      #p1Card-wrap { order: 3; }
+      #p2Card-wrap { order: 4; }
+
+      /* 遊戲畫面適配 */
+      .game-container { height: auto; max-height: 48vh; width: 100%; max-width: 400px; aspect-ratio: 440/600; display: flex; justify-content: center; align-items: center; margin: 0 auto;}
+      canvas { width: auto; height: 100%; max-width: 100%; object-fit: contain; }
+
+      /* 壓縮名牌尺寸讓整體不超出螢幕 */
+      .player-card { flex-direction: row; justify-content: space-between; align-items: center; padding: 6px 10px;}
+      .player-title { font-size: 0.8rem; margin-bottom: 0; }
+      .turn-timer-badge { width: 28px; height: 28px; font-size: 0.8rem;}
       
-      /* 隱藏手機上不需要的提示框 */
       .info-box, .status-card { display: none !important; }
     }
   </style>
@@ -255,33 +262,30 @@
   </div>
 
   <div class="layout-wrapper">
-    <!-- P1 (You) 的面板 -->
-    <div class="side-panel left">
-      <div style="display:flex; align-items:center; gap:8px;">
-        <div id="p1TurnTimer" class="turn-timer-badge" style="visibility:hidden;">7</div>
-        <div id="p1Card" class="player-card active-p1" style="flex:1;">
-          <div class="player-title" id="p1Title">Player 1</div>
-          <div class="drop-status">Drops: <span id="p1ScoreBadge" class="drop-badge">0 / 11</span></div>
+    <!-- 1. 遊戲畫布區 (手機版在最上方) -->
+    <div class="center-panel">
+      <div class="game-container">
+        <div id="topRightTimer" class="top-right-timer"><span>Safe In:</span> <span id="timerVal">3</span>s</div>
+        <canvas id="gameCanvas" width="440" height="600"></canvas>
+        <div id="modalOverlay" class="modal-overlay">
+          <div id="modalTitle" class="modal-title">P1 Wins!</div>
+          <div id="modalDesc" class="modal-desc">P2 dropped too many blocks.</div>
+          <button class="btn-restart" id="btnRestart" onclick="resetGame()">Play Again</button>
         </div>
       </div>
-      <div id="statusCard" class="status-card">Choosing a block...</div>
-      <div class="info-box">
-        <h4>How to Play</h4>
-        <div><span class="key">←</span> <span class="key">→</span> <span class="key">↑</span> <span class="key">↓</span> Move</div>
-        <div style="margin-top: 4px;"><span class="key">R</span> Rotate</div>
-        <div style="margin-top: 4px;"><span class="key">E</span> Select / Drop</div>
+
+      <!-- 2. 四個扁平長方控制按鈕 (位於遊玩區下方、手牌上方) -->
+      <div id="mobile-controls">
+        <div id="mc-left" class="mc-btn">←</div>
+        <div id="mc-right" class="mc-btn">→</div>
+        <div id="mc-rotate" class="mc-btn">↻</div>
+        <div id="mc-drop" class="mc-btn mc-action">✓</div>
       </div>
     </div>
 
-    <!-- P2 與 手牌區的面板 -->
+    <!-- 右側面板：包含手牌與兩位玩家資訊 (手機版會自動重新拆解排序) -->
     <div class="side-panel right">
-      <div style="display:flex; align-items:center; gap:8px;">
-        <div id="p2Card" class="player-card" style="flex:1;">
-          <div class="player-title" id="p2Title">Player 2</div>
-          <div class="drop-status">Drops: <span id="p2ScoreBadge" class="drop-badge">0 / 11</span></div>
-        </div>
-        <div id="p2TurnTimer" class="turn-timer-badge" style="visibility:hidden;">7</div>
-      </div>
+      <!-- 3. 五選三手牌區 -->
       <div class="hand-container-vertical">
         <div class="card" id="card0"><canvas width="60" height="60"></canvas></div>
         <div class="card" id="card1"><canvas width="60" height="60"></canvas></div>
@@ -289,36 +293,43 @@
         <div class="card" id="card3"><canvas width="60" height="60"></canvas></div>
         <div class="card" id="card4"><canvas width="60" height="60"></canvas></div>
       </div>
-    </div>
 
-    <!-- 遊戲畫布與虛擬控制 (放在一起以便於覆蓋) -->
-    <div class="center-panel">
-      <div class="game-container">
-        <div id="topRightTimer" class="top-right-timer"><span>Safe In:</span> <span id="timerVal">3</span>s</div>
-        <canvas id="gameCanvas" width="440" height="600"></canvas>
-        
-        <!-- 手機專屬：懸浮在畫布基座上方的虛擬控制按鍵區 -->
-        <div id="virtual-controls">
-          <div class="vc-left-zone">
-            <div id="btn-left" class="vc-btn">←</div>
-            <div id="btn-right" class="vc-btn">→</div>
-          </div>
-          <div class="vc-right-zone">
-            <div id="btn-rotate" class="vc-btn">↻</div>
-            <div id="btn-drop" class="vc-btn btn-action">✓</div>
+      <!-- 4. Player 1 (You) 橫條 -->
+      <div id="p1Card-wrap">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div id="p1TurnTimer" class="turn-timer-badge" style="visibility:hidden;">7</div>
+          <div id="p1Card" class="player-card active-p1" style="flex:1;">
+            <div class="player-title" id="p1Title">Player 1</div>
+            <div class="drop-status">Drops: <span id="p1ScoreBadge" class="drop-badge">0 / 11</span></div>
           </div>
         </div>
+      </div>
 
-        <div id="modalOverlay" class="modal-overlay">
-          <div id="modalTitle" class="modal-title">P1 Wins!</div>
-          <div id="modalDesc" class="modal-desc">P2 dropped too many blocks.</div>
-          <button class="btn-restart" id="btnRestart" onclick="resetGame()">Play Again</button>
+      <!-- 5. Player 2 橫條 (最下方) -->
+      <div id="p2Card-wrap">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div id="p2Card" class="player-card" style="flex:1;">
+            <div class="player-title" id="p2Title">Player 2</div>
+            <div class="drop-status">Drops: <span id="p2ScoreBadge" class="drop-badge">0 / 11</span></div>
+          </div>
+          <div id="p2TurnTimer" class="turn-timer-badge" style="visibility:hidden;">7</div>
+        </div>
+      </div>
+
+      <!-- 電腦版的說明面板 (手機自動隱藏) -->
+      <div class="side-panel left" style="width:100%;">
+        <div id="statusCard" class="status-card">Choosing a block...</div>
+        <div class="info-box">
+          <h4>How to Play</h4>
+          <div><span class="key">←</span> <span class="key">→</span> <span class="key">↑</span> <span class="key">↓</span> Move</div>
+          <div style="margin-top: 4px;"><span class="key">R</span> Rotate</div>
+          <div style="margin-top: 4px;"><span class="key">E</span> Select / Drop</div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- 手機專屬：左側懸浮工具列 -->
+  <!-- 左上角縮小全螢幕按鈕 -->
   <div id="floating-tools">
     <div class="float-btn" onclick="toggleFullScreen()" title="全螢幕">🔲</div>
   </div>
@@ -1213,10 +1224,10 @@ function bindVirtualButton(id, keyStr) {
   btn.addEventListener('contextmenu', e => e.preventDefault());
 }
 
-bindVirtualButton('btn-left', 'ARROWLEFT');
-bindVirtualButton('btn-right', 'ARROWRIGHT');
-bindVirtualButton('btn-rotate', 'R');
-bindVirtualButton('btn-drop', 'E');
+bindVirtualButton('mc-left', 'ARROWLEFT');
+bindVirtualButton('mc-right', 'ARROWRIGHT');
+bindVirtualButton('mc-rotate', 'R');
+bindVirtualButton('mc-drop', 'E');
 
 // 全螢幕切換邏輯
 function toggleFullScreen() {
