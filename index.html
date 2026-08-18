@@ -116,16 +116,19 @@
 
     /* ========================================================
        手機版：混合控制面板 (左4鈕、右2鈕，統一單一高度)
+       左側 2x2：左上=旋轉 右上=確定 左下=← 右下=→
+       右側 1x2：上=旋轉 下=確定
     ======================================================== */
     #mobile-controls-left {
       display: none; position: absolute; bottom: 8%; left: 8px; width: 44%;
-      grid-template-columns: repeat(2, 1fr); gap: 4px; z-index: 50; touch-action: none;
+      grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr);
+      gap: 4px; z-index: 50; touch-action: none;
     }
     #mobile-controls-right {
       display: none; position: absolute; bottom: 8%; right: 8px; width: 22%;
       grid-template-columns: 1fr; gap: 4px; z-index: 50; touch-action: none;
     }
-    
+
     .mc-btn {
       background: rgba(63, 63, 70, 0.9); border: 1px solid #71717a; border-radius: 8px;
       color: white; font-size: 1.1rem; font-weight: bold; height: 40px;
@@ -133,12 +136,12 @@
       user-select: none; touch-action: manipulation; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
     .mc-btn:active { background: #52525b; transform: scale(0.96); }
-    .mc-btn.mc-action { background: rgba(59, 130, 246, 0.9); border-color: #2563eb; height: 40px; } /* 修復成與其他按鈕完全相同的單一高度 */
-    .mc-btn.mc-action:active { background: #2563eb; }
+    /* 確定鍵不再使用藍底，統一與其他按鈕同款 */
 
-    /* 右下角微型全螢幕按鈕 */
+    /* 右下角微型工具按鈕群（全螢幕 / 直橫式切換） */
     #floating-tools {
       display: none; position: fixed; right: 8px; bottom: 8px; z-index: 60;
+      flex-direction: column; gap: 8px;
     }
     .float-btn {
       width: 32px; height: 32px; border-radius: 50%; background: rgba(24, 24, 28, 0.8);
@@ -148,46 +151,106 @@
     .float-btn:active { background: #3f3f46; }
 
     /* ========================================================
-       響應式設計：小於 800px 時的手機直式頂部上移排列
+       響應式設計：手機模式判定（直式窄螢幕 或 橫式短螢幕都算手機模式）
     ======================================================== */
-    @media (max-width: 800px) {
+    @media (max-width: 900px), (max-height: 700px) {
       #mobile-controls-left, #mobile-controls-right { display: grid; }
       #floating-tools { display: flex; }
 
-      body { padding: 2px; height: 100vh; background-color: #000; overflow: hidden; }
-      .layout-wrapper { 
-        flex-direction: column; 
-        align-items: center; 
-        gap: 3px; 
-        height: 100vh; 
-        width: 100vw;
-        padding: 0 4px;
-      }
-      
+      body { padding: 0; height: 100vh; background-color: #000; overflow: hidden; }
+      .layout-wrapper { height: 100vh; width: 100vw; padding: 0; margin: 0; position: relative; max-height: none; }
       .side-panel { width: 100%; flex-direction: column; gap: 2px; }
-      
-      /* 頂部雙玩家並列容器（緊貼最上方） */
-      #top-players-container {
-        display: flex; flex-direction: row; gap: 6px; width: 100%; max-width: 384px; order: 1; margin-top: 2px;
-      }
-      #top-players-container .player-card { flex: 1; }
-
-      /* 手牌區在玩家下方 */
-      .hand-container-vertical { 
-        order: 2; flex-direction: row; justify-content: center; width: 100%; gap: 6px; margin: 2px 0;
-      }
-      .card { width: 40px; height: 40px; }
-      .card canvas { width: 100%; height: 100%; }
-
-      /* 遊戲畫布在手牌下方、控制按鈕疊加其上 */
-      .center-panel { order: 3; width: 100%; display: flex; justify-content: center; align-items: center; padding: 0;}
-
-      /* 隱藏不需要的面板 */
       .side-panel.left, .side-panel.right { display: none !important; }
+      .card canvas { width: 100%; height: 100%; }
+    }
 
-      /* 遊戲畫面適配：縮窄為底座左右再多兩格（總寬 10 格對應 336px 畫布） */
-      .game-container { height: auto; max-height: 56vh; width: 100%; max-width: 384px; aspect-ratio: 336/600; display: flex; justify-content: center; align-items: center; margin: 0 auto;}
-      canvas { width: auto; height: 100%; max-width: 100%; object-fit: contain; }
+    /* ================= 直式 (Portrait) ================= */
+    @media (max-width: 900px), (max-height: 700px) {
+      body[data-layout="portrait"] .layout-wrapper {
+        flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0;
+      }
+
+      /* 頂到螢幕最上方：左 P1 右 P2 */
+      body[data-layout="portrait"] #top-players-container {
+        display: flex; flex-direction: row; gap: 6px; width: 100%;
+        order: 1; margin: 0; padding: 4px 6px 0; box-sizing: border-box; flex: 0 0 auto;
+      }
+      body[data-layout="portrait"] #top-players-container .player-card { flex: 1; }
+
+      /* 五選三手牌區，緊接在玩家資訊下方 */
+      body[data-layout="portrait"] .hand-container-vertical {
+        order: 2; flex-direction: row; justify-content: center; width: 100%; gap: 6px;
+        margin: 4px 0; flex: 0 0 auto;
+      }
+      body[data-layout="portrait"] .card { width: 40px; height: 40px; }
+
+      /* 遊玩區：以「高度」為主導，寬度依 14 格比例自動縮放，不再頂滿螢幕左右 */
+      body[data-layout="portrait"] .center-panel {
+        order: 3; flex: 1 1 auto; min-height: 0; width: 100%;
+        display: flex; justify-content: center; align-items: center; padding: 0; position: relative;
+      }
+      body[data-layout="portrait"] .game-container {
+        margin: 0 auto;
+      }
+      body[data-layout="portrait"] canvas { width: auto; height: 100%; max-width: 100%; object-fit: contain; }
+
+      /* 左側 4 鈕：疊加在遊玩區左下（不覆蓋最底部基底) */
+      body[data-layout="portrait"] #mobile-controls-left {
+        position: absolute; left: 6px; bottom: 9%; width: 46%;
+        grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr);
+      }
+      /* 右側 2 鈕：疊加在遊玩區右下 */
+      body[data-layout="portrait"] #mobile-controls-right {
+        position: absolute; right: 6px; bottom: 9%; width: 22%;
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ================= 橫式 (Landscape，通則版，之後再微調) ================= */
+    @media (max-width: 900px), (max-height: 700px) {
+      body[data-layout="landscape"] .layout-wrapper {
+        display: block; position: relative; width: 100vw; height: 100vh; padding: 0;
+      }
+
+      /* 頂部橫帶：左 P1、右 P2，皆貼著螢幕左右上方 (絕對定位，不佔版面) */
+      body[data-layout="landscape"] #top-players-container {
+        position: absolute; top: 4px; left: 6px; right: 6px; width: auto;
+        display: flex; flex-direction: row; justify-content: space-between; gap: 0; margin: 0;
+        z-index: 20; pointer-events: none;
+      }
+      body[data-layout="landscape"] #top-players-container .player-card { width: 128px; flex: 0 0 auto; pointer-events: auto; }
+      body[data-layout="landscape"] .player-title { font-size: 0.72rem; }
+      body[data-layout="landscape"] .drop-status { font-size: 0.62rem; }
+
+      /* 手牌區置中疊在頂部橫帶中間 */
+      body[data-layout="landscape"] .hand-container-vertical {
+        position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
+        display: flex; flex-direction: row; gap: 4px; margin: 0; z-index: 20;
+      }
+      body[data-layout="landscape"] .card { width: 34px; height: 34px; }
+
+      /* 遊玩區佔滿整個畫面置中，寬度依比例縮放 (由 JS 精確計算) */
+      body[data-layout="landscape"] .center-panel {
+        width: 100vw; height: 100vh; box-sizing: border-box;
+        display: flex; align-items: center; justify-content: center; padding: 46px 0 0 0; position: relative;
+      }
+      body[data-layout="landscape"] .game-container { margin: 0 auto; }
+      body[data-layout="landscape"] canvas { width: auto; height: 100%; max-width: 100%; object-fit: contain; }
+
+      /* 橫式空間較寬，操作鈕移到畫面左右兩側空白處，不與遊玩區重疊 */
+      body[data-layout="landscape"] #mobile-controls-left {
+        position: fixed; left: 10px; bottom: 6%; width: 34vw; max-width: 190px;
+        grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr);
+      }
+      body[data-layout="landscape"] #mobile-controls-right {
+        position: fixed; right: 10px; bottom: 6%; width: 16vw; max-width: 80px;
+        grid-template-columns: 1fr;
+      }
+
+      /* 浮動工具鈕移到畫面右側中間，避開頂部玩家資訊與底部操作鈕 */
+      body[data-layout="landscape"] #floating-tools {
+        top: 50%; bottom: auto; right: 6px; transform: translateY(-50%);
+      }
     }
   </style>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -279,18 +342,18 @@
         <!-- 畫布改為 336 寬 (對應 10 格底座 + 左右各 2 格寬度，即總共 14 格寬的視野) -->
         <canvas id="gameCanvas" width="336" height="600"></canvas>
         
-        <!-- 左側 4 個按鈕：左上旋轉、左下方向、左左、右右 -->
+        <!-- 左側 4 個按鈕 (2x2)：左上=旋轉 右上=確定 左下=← 右下=→ -->
         <div id="mobile-controls-left">
           <div id="mc-rotate-top" class="mc-btn">↻</div>
-          <div id="mc-up" class="mc-btn">↑</div>
+          <div id="mc-drop-left" class="mc-btn">✓</div>
           <div id="mc-left" class="mc-btn">←</div>
           <div id="mc-right" class="mc-btn">→</div>
         </div>
 
-        <!-- 右側 2 個按鈕：上方旋轉、下方確認 (兩者高度一致) -->
+        <!-- 右側 2 個按鈕：上方旋轉、下方確認 (兩者高度一致，確定不用藍底) -->
         <div id="mobile-controls-right">
           <div id="mc-rotate" class="mc-btn">↻</div>
-          <div id="mc-drop" class="mc-btn mc-action">✓</div>
+          <div id="mc-drop" class="mc-btn">✓</div>
         </div>
 
         <div id="modalOverlay" class="modal-overlay">
@@ -314,8 +377,9 @@
     </div>
   </div>
 
-  <!-- 右下角微型全螢幕按鈕 -->
+  <!-- 右下角微型工具按鈕：直橫式切換 / 全螢幕 -->
   <div id="floating-tools">
+    <div class="float-btn" onclick="toggleOrientationLayout()" title="切換直式/橫式">⤢</div>
     <div class="float-btn" onclick="toggleFullScreen()" title="全螢幕">🔲</div>
   </div>
 
@@ -1210,6 +1274,59 @@ function toggleFullScreen() {
     if (document.exitFullscreen) document.exitFullscreen();
   }
 }
+
+// ============ 手機直式 / 橫式 UI 佈局切換 ============
+// 預設依視窗寬高自動判斷；按下按鈕後改為手動模式，不再被自動偵測覆蓋。
+let layoutManualOverride = false;
+function isMobileLayoutActive() { return window.innerWidth <= 900 || window.innerHeight <= 700; }
+
+function autoDetectLayout() {
+  if (layoutManualOverride) return;
+  document.body.setAttribute('data-layout', window.innerWidth >= window.innerHeight ? 'landscape' : 'portrait');
+}
+function toggleOrientationLayout() {
+  layoutManualOverride = true;
+  const next = document.body.getAttribute('data-layout') === 'landscape' ? 'portrait' : 'landscape';
+  document.body.setAttribute('data-layout', next);
+  requestAnimationFrame(fitGameContainer);
+}
+
+// 讓遊玩區永遠依照 336:600 的正確比例縮放，不再頂滿螢幕左右或上下
+const GAME_RATIO = 336 / 600;
+function fitGameContainer() {
+  const panel = document.querySelector('.center-panel');
+  const box = document.querySelector('.game-container');
+  if (!panel || !box) return;
+
+  if (!isMobileLayoutActive()) {
+    box.style.width = '';
+    box.style.height = '';
+    return;
+  }
+
+  const isLandscape = document.body.getAttribute('data-layout') === 'landscape';
+  const sideMargin = 16; // 保留左右可見邊距，避免遊玩區直接頂到螢幕最左最右
+  const topMargin = isLandscape ? 46 : 0; // 橫式頂部疊了玩家資訊/手牌橫帶，需預留空間避免重疊
+  const availW = panel.clientWidth - sideMargin * 2;
+  const availH = panel.clientHeight - topMargin;
+  if (availW <= 0 || availH <= 0) return;
+
+  let w = availH * GAME_RATIO;
+  let h = availH;
+  if (w > availW) { w = availW; h = availW / GAME_RATIO; }
+
+  box.style.width = w + 'px';
+  box.style.height = h + 'px';
+}
+
+function refreshLayout() {
+  autoDetectLayout();
+  requestAnimationFrame(fitGameContainer);
+}
+
+refreshLayout();
+window.addEventListener('resize', refreshLayout);
+window.addEventListener('orientationchange', refreshLayout);
 
 function resetGame() { if (myRole === 'P1' && physicsWorker) physicsWorker.postMessage({ type: 'INIT' }); }
 
