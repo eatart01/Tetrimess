@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tetrimess 疊過頭</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Tetrimess</title>
   <style>
     * {
       box-sizing: border-box;
@@ -22,6 +22,7 @@
       width: 100vw;
       overflow: hidden;
       padding-top: 16px;
+      touch-action: manipulation; /* 防止手機雙擊放大 */
     }
 
     .layout-wrapper { display: flex; flex-direction: row; align-items: flex-start; justify-content: center; gap: 28px; max-height: 95vh; }
@@ -52,7 +53,8 @@
     .key { background: #27272a; color: #e2e8f0; padding: 1px 5px; border-radius: 4px; font-weight: 600; font-family: monospace; border: 1px solid #3f3f46; }
 
     .hand-container-vertical { display: flex; flex-direction: column; gap: 10px; align-items: center; }
-    .card { width: 66px; height: 66px; background: #18181c; border: 2px solid #27272a; border-radius: 8px; display: flex; justify-content: center; align-items: center; transition: all 0.2s ease; }
+    .card { width: 66px; height: 66px; background: #18181c; border: 2px solid #27272a; border-radius: 8px; display: flex; justify-content: center; align-items: center; transition: all 0.2s ease; overflow: hidden;}
+    .card canvas { object-fit: contain; }
     .card.selected-p1 { border-color: #3b82f6; background: #1e293b; transform: scale(1.08); box-shadow: 0 0 12px rgba(59, 130, 246, 0.3); }
     .card.selected-p2 { border-color: #f97316; background: #2a1b12; transform: scale(1.08); box-shadow: 0 0 12px rgba(249, 115, 22, 0.3); }
 
@@ -62,9 +64,9 @@
     .top-right-timer { position: absolute; top: 12px; right: 12px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; display: none; align-items: center; gap: 4px; z-index: 5; }
     .top-right-timer.active { display: flex; }
 
-    .modal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 12, 0.92); backdrop-filter: blur(6px); display: flex; flex-direction: column; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 10; }
+    .modal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 12, 0.92); backdrop-filter: blur(6px); display: flex; flex-direction: column; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 100; }
     .modal-overlay.active { opacity: 1; pointer-events: auto; }
-    .modal-title { font-size: 1.8rem; font-weight: 700; color: #f1f5f9; margin-bottom: 8px; }
+    .modal-title { font-size: 1.8rem; font-weight: 700; color: #f1f5f9; margin-bottom: 8px; text-align: center;}
     .modal-desc { font-size: 0.95rem; color: #94a3b8; margin-bottom: 20px; text-align: center; padding: 0 20px; line-height: 1.5; }
 
     .btn-restart { padding: 10px 24px; background: #4f46e5; color: #ffffff; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
@@ -73,7 +75,6 @@
     .room-input { background: #18181c; border: 1px solid #3f3f46; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 0.95rem; outline: none; width: 180px; text-align: center; }
     .room-input:focus { border-color: #9ead9d; }
 
-    /* 大廳：黑底維持不變，但邊框/圖示/文字用遊戲內方塊的色調，不要用預設藍紫色系 */
     .lobby-row { display: flex; flex-direction: row; align-items: flex-start; gap: 16px; margin-top: 18px; flex-wrap: wrap; justify-content: center; }
     .mode-card {
       background: #18181c; border: 2px solid #33322e; border-radius: 12px; padding: 16px 14px; width: 168px;
@@ -110,149 +111,198 @@
     .btn-cancel { background: transparent; border: 1px solid #78443f; color: #e0918a; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.78rem; }
     .btn-cancel:hover { background: #2a1414; }
 
-    /* 複製按鈕樣式 */
     .btn-copy { background: #3f3f46; color: #e2e8f0; border: 1px solid #52525b; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
     .btn-copy:hover { background: #52525b; color: #fff; }
-  #frictionTunePanel {
-    display: none;
-    position: fixed;
-    left: 16px;
-    bottom: 16px;
-    background: #18181c;
-    border: 1px solid #3f3f46;
-    border-radius: 10px;
-    padding: 12px 14px;
-    z-index: 200;
-    width: 240px;
-    max-height: 85vh;
-    overflow-y: auto;
-  }
-  #frictionTunePanel.active { display: block; }
-  #frictionTunePanel h4 { color: #cbd5e1; font-size: 0.8rem; margin-bottom: 8px; }
-  #frictionTunePanel label { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.75rem; color: #94a3b8; margin-bottom: 6px; }
-  #frictionTunePanel input {
-    width: 70px;
-    background: #0f0f12;
-    border: 1px solid #3f3f46;
-    color: #e2e8f0;
-    border-radius: 6px;
-    padding: 3px 6px;
-    font-size: 0.8rem;
-    text-align: right;
-  }
-  #frictionTunePanel .tune-hint { font-size: 0.65rem; color: #52525b; margin-top: 6px; line-height: 1.4; }
-  #frictionTunePanel .tune-buttons { display: flex; gap: 8px; margin-top: 10px; }
-  .btn-tune.active-toggle { background: #059669; border-color: #047857; color: #fff; }
-  .btn-tune {
-    flex: 1;
-    background: #3f3f46;
-    color: #e2e8f0;
-    border: 1px solid #52525b;
-    border-radius: 6px;
-    padding: 6px 4px;
-    font-size: 0.7rem;
-    cursor: pointer;
-  }
-  .btn-tune:hover { background: #52525b; }
+
+    /* ========================================================
+       新設計：虛擬控制列 (手機版隱藏於電腦，顯示於手機)
+    ======================================================== */
+    #virtual-controls {
+      display: none; position: fixed; bottom: 0; left: 0; width: 100%; height: 130px;
+      padding: 10px 20px; box-sizing: border-box; z-index: 50;
+      background: linear-gradient(to top, rgba(15,15,18,1) 40%, rgba(15,15,18,0));
+      touch-action: none; /* 防止所有預設手勢干擾 */
+    }
+    
+    .vc-btn {
+      background: rgba(63, 63, 70, 0.85); border: 2px solid #71717a; border-radius: 50%;
+      color: white; font-size: 1.6rem; font-weight: bold; display: flex; align-items: center; justify-content: center;
+      user-select: none; touch-action: manipulation; box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+    }
+    .vc-btn:active { background: #52525b; transform: scale(0.92); box-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+    .vc-btn.btn-action { background: rgba(59, 130, 246, 0.85); border-color: #2563eb; }
+    .vc-btn.btn-action:active { background: #2563eb; }
+
+    .vc-left-zone, .vc-right-zone { display: flex; position: relative; }
+    
+    /* 模式 A：經典雙手 (Classic Dual) */
+    #virtual-controls.mode-a { justify-content: space-between; align-items: center; padding-bottom: 20px;}
+    #virtual-controls.mode-a .vc-left-zone { gap: 15px; }
+    #virtual-controls.mode-a .vc-right-zone { gap: 15px; }
+    #virtual-controls.mode-a .vc-btn { width: 60px; height: 60px; }
+    #virtual-controls.mode-a #btn-rotate-left { display: none; } /* 模式A隱藏左側旋轉 */
+
+    /* 模式 B：單手集中 (Single Hand) */
+    #virtual-controls.mode-b { justify-content: space-between; align-items: flex-end; padding-bottom: 15px;}
+    #virtual-controls.mode-b .vc-left-zone { 
+      display: grid; grid-template-columns: 65px 65px; grid-template-rows: 50px 65px; gap: 8px; align-items: center; justify-items: center;
+    }
+    #virtual-controls.mode-b #btn-rotate-left { display: flex; grid-column: 1 / span 2; grid-row: 1; width: 65px; height: 45px; border-radius: 20px; font-size: 1.2rem;}
+    #virtual-controls.mode-b #btn-left { grid-column: 1; grid-row: 2; width: 65px; height: 65px;}
+    #virtual-controls.mode-b #btn-right { grid-column: 2; grid-row: 2; width: 65px; height: 65px;}
+    
+    #virtual-controls.mode-b .vc-right-zone { align-items: flex-end; }
+    #virtual-controls.mode-b #btn-rotate { display: none; } /* 模式B隱藏右側旋轉 */
+    #virtual-controls.mode-b #btn-drop { width: 90px; height: 90px; font-size: 2.5rem; background: rgba(239, 68, 68, 0.9); border-color: #dc2626;}
+    
+    /* 懸浮工具列 (全螢幕、切換模式) */
+    #floating-tools {
+      display: none; position: fixed; left: 10px; top: 50%; transform: translateY(-50%);
+      flex-direction: column; gap: 15px; z-index: 60;
+    }
+    .float-btn {
+      width: 44px; height: 44px; border-radius: 50%; background: rgba(24, 24, 28, 0.6);
+      border: 2px solid #3f3f46; color: white; font-size: 1.2rem; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; user-select: none; touch-action: manipulation; backdrop-filter: blur(4px); box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+    .float-btn:active { background: #3f3f46; }
+
+    /* ========================================================
+       響應式設計：小於 800px 時轉換為手機直式版面
+    ======================================================== */
+    @media (max-width: 800px) {
+      /* 開啟手機端工具 */
+      #virtual-controls { display: flex; }
+      #floating-tools { display: flex; }
+
+      body { padding: 5px; height: 100vh; background-color: #000; }
+      .layout-wrapper { 
+        flex-direction: column; 
+        align-items: stretch; 
+        gap: 8px; 
+        height: calc(100vh - 140px); /* 扣掉底部虛擬按鍵空間 */
+        width: 100vw;
+        padding: 0 10px;
+      }
+      
+      .side-panel { width: 100%; flex-direction: column; gap: 8px; }
+      .side-panel.right { order: 1; /* 手機版：對手資訊與手牌放最上面 */ }
+      .center-panel { order: 2; flex: 1; min-height: 0; width: 100%; display: flex; justify-content: center; align-items: center; padding: 0;}
+      .side-panel.left { order: 3; /* 手機版：自己資訊放下面 */ }
+
+      /* 遊戲畫面自動縮放完美適應手機寬度 */
+      .game-container { height: 100%; max-height: 100%; width: 100%; max-width: 440px; aspect-ratio: 440/600; display: flex; justify-content: center; align-items: center; margin: 0 auto;}
+      canvas { width: auto; height: 100%; max-width: 100%; object-fit: contain; }
+
+      /* 卡片水平排列 */
+      .hand-container-vertical { flex-direction: row; justify-content: center; width: 100%; gap: 6px;}
+      .card { width: 44px; height: 44px; }
+      .card canvas { width: 100%; height: 100%; }
+
+      /* 壓縮玩家名牌尺寸 */
+      .player-card { flex-direction: row; justify-content: space-between; align-items: center; padding: 8px 12px;}
+      .player-title { font-size: 0.9rem; margin-bottom: 0; }
+      .turn-timer-badge { width: 34px; height: 34px; font-size: 0.9rem;}
+      
+      /* 隱藏手機上不需要的提示框 */
+      .info-box, .status-card { display: none !important; }
+    }
   </style>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
 
-  <!-- 大廳 Modal -->
-  <div id="lobbyOverlay" class="modal-overlay active" style="z-index: 100;">
-    <div class="modal-title">Tetrimess 疊過頭</div>
-    <div class="modal-desc">選擇遊戲模式，或輸入朋友的房間 ID 連線</div>
+  <!-- Lobby Modal -->
+  <div id="lobbyOverlay" class="modal-overlay active">
+    <div class="modal-title">Tetrimess</div>
+    <div class="modal-desc">Choose a game mode, or type Room ID to join.</div>
 
     <div class="lobby-row">
       <div class="mode-substack-wrap">
-        <div class="mode-substack-title" style="visibility:hidden;">建立房間（我是 P1）</div>
+        <div class="mode-substack-title" style="visibility:hidden;">Make Room (P1)</div>
         <button class="mode-card c-i" onclick="startSoloChallenge()">
           <div class="mode-icon-blocks" id="iconSolo"></div>
-          <div class="mode-name">單人堆疊挑戰</div>
-          <div class="mode-sub">獨自一人，挑戰能疊多高</div>
+          <div class="mode-name">1 Player Mode</div>
+          <div class="mode-sub">Play alone. Stack as high as you can.</div>
         </button>
       </div>
 
       <div class="mode-substack-wrap">
-        <div class="mode-substack-title">建立房間（我是 P1）</div>
+        <div class="mode-substack-title">Make Room (P1)</div>
         <div class="mode-substack" id="modeSubstack">
           <button class="mode-card c-t" data-mode="coop" onclick="selectRoomMode('coop', this)">
             <div class="mode-icon-blocks" id="iconCoop"></div>
             <div class="mode-text">
-              <div class="mode-name">雙人堆疊合作</div>
-              <div class="mode-sub">共用 11 次掉落上限，一起疊高</div>
+              <div class="mode-name">2 Players: Team Up</div>
+              <div class="mode-sub">Share 11 drops. Stack high together.</div>
             </div>
           </button>
           <button class="mode-card c-o" data-mode="pvp-drops" onclick="selectRoomMode('pvp-drops', this)">
             <div class="mode-icon-blocks" id="iconPvpDrops"></div>
             <div class="mode-text">
-              <div class="mode-name">雙人堆疊對決</div>
-              <div class="mode-sub">先累積掉落 11 次的人輸</div>
+              <div class="mode-name">2 Players: Versus</div>
+              <div class="mode-sub">First to drop 11 blocks loses.</div>
             </div>
           </button>
           <button class="mode-card c-z" data-mode="pvp-score" onclick="selectRoomMode('pvp-score', this)">
             <div class="mode-icon-blocks" id="iconPvpScore"></div>
             <div class="mode-text">
-              <div class="mode-name">雙人掉落對決</div>
-              <div class="mode-sub">放置範圍縮小，依格數搶分，先達 35 分獲勝</div>
+              <div class="mode-name">2 Players: Score</div>
+              <div class="mode-sub">Smaller area. Drop blocks to score. First to 35 wins!</div>
             </div>
           </button>
         </div>
       </div>
 
       <div class="mode-substack-wrap">
-        <div class="mode-substack-title" style="visibility:hidden;">建立房間（我是 P1）</div>
-        <div class="connect-panel" id="connectPanel"><div class="connect-placeholder">雙人遊玩請 P1 先選擇<br>左側的雙人模式</div></div>
+        <div class="mode-substack-title" style="visibility:hidden;">Make Room (P1)</div>
+        <div class="connect-panel" id="connectPanel"><div class="connect-placeholder">For 2 players, P1 must<br>choose a mode first.</div></div>
       </div>
     </div>
 
     <div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:24px;">
-      <input type="text" id="roomInput" class="room-input" placeholder="輸入房間 ID">
-      <button class="btn-restart" style="background:#059669;" onclick="joinRoom()">加入房間 (我是 P2)</button>
+      <input type="text" id="roomInput" class="room-input" placeholder="Room ID">
+      <button class="btn-restart" style="background:#059669;" onclick="joinRoom()">Join Room (P2)</button>
     </div>
 
     <div class="modal-desc" id="lobbyStatus" style="margin-top:16px;"></div>
   </div>
 
   <div class="layout-wrapper">
-    <!-- 左側欄 -->
     <div class="side-panel left">
       <div style="display:flex; align-items:center; gap:8px;">
         <div id="p1TurnTimer" class="turn-timer-badge" style="visibility:hidden;">7</div>
         <div id="p1Card" class="player-card active-p1" style="flex:1;">
-          <div class="player-title" id="p1Title">玩家 P1</div>
-          <div class="drop-status">掉落數量: <span id="p1ScoreBadge" class="drop-badge">0 / 11</span></div>
+          <div class="player-title" id="p1Title">Player 1</div>
+          <div class="drop-status">Drops: <span id="p1ScoreBadge" class="drop-badge">0 / 11</span></div>
         </div>
       </div>
-      <div id="statusCard" class="status-card">選擇手牌中...</div>
+      <div id="statusCard" class="status-card">Choosing a block...</div>
       <div class="info-box">
-        <h4>按鍵操作指示</h4>
-        <div><span class="key">←</span> <span class="key">→</span> <span class="key">↑</span> <span class="key">↓</span> 切換/移動</div>
-        <div style="margin-top: 4px;"><span class="key">R</span> 旋轉方塊</div>
-        <div style="margin-top: 4px;"><span class="key">E</span> 確定選擇 / 鎖定落點</div>
+        <h4>How to Play</h4>
+        <div><span class="key">←</span> <span class="key">→</span> <span class="key">↑</span> <span class="key">↓</span> Move</div>
+        <div style="margin-top: 4px;"><span class="key">R</span> Rotate</div>
+        <div style="margin-top: 4px;"><span class="key">E</span> Select / Drop</div>
       </div>
     </div>
 
-    <!-- 中間遊戲區 -->
     <div class="center-panel">
       <div class="game-container">
-        <div id="topRightTimer" class="top-right-timer"><span>安定倒數:</span> <span id="timerVal">3</span>s</div>
+        <div id="topRightTimer" class="top-right-timer"><span>Safe In:</span> <span id="timerVal">3</span>s</div>
         <canvas id="gameCanvas" width="440" height="600"></canvas>
         <div id="modalOverlay" class="modal-overlay">
-          <div id="modalTitle" class="modal-title">P1 獲勝！</div>
-          <div id="modalDesc" class="modal-desc">P2 累積掉落數量達到上限</div>
-          <button class="btn-restart" id="btnRestart" onclick="resetGame()">重新開始</button>
+          <div id="modalTitle" class="modal-title">P1 Wins!</div>
+          <div id="modalDesc" class="modal-desc">P2 dropped too many blocks.</div>
+          <button class="btn-restart" id="btnRestart" onclick="resetGame()">Play Again</button>
         </div>
       </div>
     </div>
 
-    <!-- 右側欄 -->
     <div class="side-panel right">
       <div style="display:flex; align-items:center; gap:8px;">
         <div id="p2Card" class="player-card" style="flex:1;">
-          <div class="player-title" id="p2Title">玩家 P2</div>
-          <div class="drop-status">掉落數量: <span id="p2ScoreBadge" class="drop-badge">0 / 11</span></div>
+          <div class="player-title" id="p2Title">Player 2</div>
+          <div class="drop-status">Drops: <span id="p2ScoreBadge" class="drop-badge">0 / 11</span></div>
         </div>
         <div id="p2TurnTimer" class="turn-timer-badge" style="visibility:hidden;">7</div>
       </div>
@@ -266,24 +316,35 @@
     </div>
   </div>
 
+  <!-- 手機專屬：懸浮按鈕區 -->
+  <div id="floating-tools">
+    <div class="float-btn" onclick="toggleControlMode()" title="切換按鍵模式">🔄</div>
+    <div class="float-btn" onclick="toggleFullScreen()" title="全螢幕">🔲</div>
+  </div>
+
+  <!-- 手機專屬：虛擬控制按鍵區 -->
+  <div id="virtual-controls" class="mode-a">
+    <div class="vc-left-zone">
+      <div id="btn-rotate-left" class="vc-btn">↻</div>
+      <div id="btn-left" class="vc-btn">←</div>
+      <div id="btn-right" class="vc-btn">→</div>
+    </div>
+    <div class="vc-right-zone">
+      <div id="btn-rotate" class="vc-btn">↻</div>
+      <div id="btn-drop" class="vc-btn btn-action">✓</div>
+    </div>
+  </div>
+
 <script>
-// =========================================================================
-// Web Worker 原始碼：主機（P1）的完整遊戲邏輯——物理引擎、抽牌規則、
-// 安定判定、回合流程——整個搬進這裡，用字串內嵌 + Blob URL 建立，
-// 維持單一 HTML 檔案的原則。P2 完全不需要用到這個 Worker（P2 本來就只是
-// 顯示端）。Worker 用 setInterval 驅動，不受主分頁可見性節流影響；
-// 主執行緒收到 Worker 傳回的訊息時直接觸發網路廣播，這個事件本身
-// 也不受節流影響，這是整個架構能撐過分頁被蓋住的關鍵。
-// =========================================================================
 const WORKER_SOURCE = `
   try {
     importScripts('https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js');
   } catch (err) {
-    postMessage({ type: 'ERROR', message: 'importScripts 載入 Matter.js 失敗: ' + err.message });
+    postMessage({ type: 'ERROR', message: 'Failed to load Matter.js: ' + err.message });
     throw err;
   }
   if (typeof Matter === 'undefined') {
-    postMessage({ type: 'ERROR', message: 'Matter.js 載入後 Matter 物件不存在（可能被瀏覽器安全政策擋下）' });
+    postMessage({ type: 'ERROR', message: 'Matter object not found' });
   }
 
   const TILE_SIZE = 24, CANVAS_WIDTH = 440, CANVAS_HEIGHT = 600, INITIAL_BASE_Y = CANVAS_HEIGHT - (2 * TILE_SIZE);
@@ -302,29 +363,22 @@ const WORKER_SOURCE = `
   const ADVANCED_SHAPE_NAMES = ['L', 'Plus', 'LongL']; const ADVANCED_SHAPE_UNLOCK_COUNT = 15; let totalPlacementCount = 0;
   const I_SHAPE_MIN_GAP = 5; let drawCount = 0; let lastIDrawnAt = -Infinity;
   const DOT_PAIR_TRIGGER_WEIGHT = 1; const DOT_PAIR_MIN_GAP = 6; let pendingDotCount = 0;
-  let drawsSinceLastDotPair = Infinity; // 距離上一組單一格結束後，已經抽了幾次「其他形狀」（不含Dot本身）
-  const LIGHTNING_WEIGHT = 1.3; // S/Z（閃電符號）出現機率 +30%
+  let drawsSinceLastDotPair = Infinity;
+  const LIGHTNING_WEIGHT = 1.3;
   function shapeWeight(s) { return (s.name === 'S' || s.name === 'Z') ? LIGHTNING_WEIGHT : 1; }
 
   const { Engine, Bodies, Composite, Body, Events } = Matter;
   const engine = Engine.create({ positionIterations: 18, velocityIterations: 18, enableSleeping: false, gravity: { x: 0, y: 1.2, scale: 0.001 } });
 
-  // 可動態調整的摩擦力數值（供除錯調校模式即時修改，一般模式維持這組預設值不變）
   let baseFriction = 1.81, baseFrictionStatic = 2.21, blockFriction = 1.26, blockFrictionStatic = 1.46;
-  let sharedFrictionAir = 0.06; // 真正控制晃動收斂速度的參數（同時作用在線速度與角速度）
-  let sharedDensity = 0.002; // 質量密度：影響正向力、摩擦力絕對值，也影響轉動慣量（雙面刃，效果方向不一定）
-  let physicsSubsteps = 2; // 每個畫面幀拆成幾次更小步長運算，越高數值積分越精細
-  let forcedShape = null; // 測試用：非null時，抽牌一律固定回傳這個形狀
+  let sharedFrictionAir = 0.06; let sharedDensity = 0.002; let physicsSubsteps = 2; let forcedShape = null;
 
   let currentPlayer = 1, gameState = 'SELECT_CARD', playerDrops = { 1: 0, 2: 0 }, lastDropWarningMsg = '';
-  let gameMode = 'pvp-drops'; // 'solo' | 'coop' | 'pvp-drops' | 'pvp-score'
-  let sharedDropCount = 0; // 雙人堆疊合作模式：共用掉落次數
-  let playerScores = { 1: 0, 2: 0 }; // 雙人掉落對決模式：依格數計分
-  const PVP_SCORE_TARGET = 35;
-  const PVP_SCORE_LOSE_THRESHOLD = -3; // 分數低到這裡直接判負
-  const MOVE_RANGE_SHRINK = 4 * TILE_SIZE; // 雙人掉落對決模式：左右可移動範圍各縮小4格
-  const TURN_TIME_LIMIT_MS = 7000; // 雙人掉落對決模式：每回合（選牌+放置）限時7秒
-  let turnStartTime = 0; // 這回合是什麼時候開始的（給倒數計時器用）
+  let gameMode = 'pvp-drops';
+  let sharedDropCount = 0, playerScores = { 1: 0, 2: 0 };
+  const PVP_SCORE_TARGET = 35; const PVP_SCORE_LOSE_THRESHOLD = -3;
+  const MOVE_RANGE_SHRINK = 4 * TILE_SIZE; const TURN_TIME_LIMIT_MS = 7000;
+  let turnStartTime = 0;
   let sharedHand = [], selectedCardIndex = 0, activeShape = null, activeMatrix = null;
   let posX = CANVAS_WIDTH / 2, posY = 200, countdownTimer = null, countdownValue = 3;
   let placedBodies = [], currentDroppedBody = null, hasTouched = false, touchTime = 0, stableSince = null;
@@ -351,7 +405,7 @@ const WORKER_SOURCE = `
     if (forcedShape) return cloneShape(forcedShape);
     if (pendingDotCount > 0) {
       pendingDotCount--;
-      if (pendingDotCount === 0) drawsSinceLastDotPair = 0; // 這一張是這一組的第二張，成對結束，重新起算間隔
+      if (pendingDotCount === 0) drawsSinceLastDotPair = 0;
       return cloneShape(SHAPES_DATABASE.find(s => s.name === 'Dot'));
     }
     let normalPool = (totalPlacementCount >= ADVANCED_SHAPE_UNLOCK_COUNT ? SHAPES_DATABASE : SHAPES_DATABASE.filter(s => !ADVANCED_SHAPE_NAMES.includes(s.name))).filter(s => s.name !== 'Dot');
@@ -380,8 +434,6 @@ const WORKER_SOURCE = `
   function updateSpawnY() {
     const shapeRows = activeMatrix ? activeMatrix.length : 1;
     const halfHeight = (shapeRows * TILE_SIZE) / 2;
-    // 硬地板改成「方塊自身半高 + 一點緩衝」，讓出生點能盡量往上頂到畫面邊緣，
-    // 不再被一個跟方塊高度無關的固定數字卡住（這是原本貼近堆疊頂端時會卡住的根因）
     posY = Math.max(halfHeight + 10, getHighestY() - (2 * TILE_SIZE) - halfHeight);
   }
 
@@ -405,33 +457,29 @@ const WORKER_SOURCE = `
 
   function createPhysicsBodyFromMatrix(x, y, matrix, color, isStatic = false) {
     const rows = matrix.length; const cols = matrix[0].length;
-    // 底座（isStatic）摩擦力大幅提升；一般方塊（含直條類方塊）維持極輕微加強
     const fr = isStatic ? baseFriction : blockFriction;
     const frS = isStatic ? baseFrictionStatic : blockFrictionStatic;
+    
+    const SHRINK = 0.3; 
+
     if (isStraightLineMatrix(matrix)) {
-      const body = Bodies.rectangle(x, y, cols * TILE_SIZE, rows * TILE_SIZE, { isStatic, friction: fr, frictionStatic: frS, frictionAir: sharedFrictionAir, restitution: 0, density: sharedDensity });
+      const body = Bodies.rectangle(x, y, (cols * TILE_SIZE) - SHRINK, (rows * TILE_SIZE) - SHRINK, { isStatic, friction: fr, frictionStatic: frS, frictionAir: sharedFrictionAir, restitution: 0, density: sharedDensity });
       body.customColor = color; body.tileGrid = { rows, cols, tileSize: TILE_SIZE }; Composite.add(engine.world, body); return body;
     }
     const parts = []; const offsetX = (cols * TILE_SIZE) / 2; const offsetY = (rows * TILE_SIZE) / 2;
 
-    // 【橫向合併，優先權最高，維持原本邏輯完全不變】逐列處理，跟之前的版本一模一樣，
-    // 確保 T/L/J/O/S/Z/Plus/U/BigCorner 這些已經調好的形狀行為不受影響。
     for (let r = 0; r < rows; r++) {
       let c = 0;
       while (c < cols) {
         if (matrix[r][c] === 1) {
           const runStart = c; while (c < cols && matrix[r][c] === 1) c++;
           const runLength = c - runStart; const runWidth = runLength * TILE_SIZE;
-          const box = Bodies.rectangle(x + (runStart * TILE_SIZE + runWidth / 2) - offsetX, y + (r * TILE_SIZE + TILE_SIZE / 2) - offsetY, runWidth, TILE_SIZE, {});
+          const box = Bodies.rectangle(x + (runStart * TILE_SIZE + runWidth / 2) - offsetX, y + (r * TILE_SIZE + TILE_SIZE / 2) - offsetY, runWidth - SHRINK, TILE_SIZE - SHRINK, {});
           box.tileCount = runLength; box.__row = r; box.__col = runStart; parts.push(box);
         } else c++;
       }
     }
 
-    // 【縱向合併，事後補強】只找「橫向合併後仍然是孤立單格（tileCount===1）、同一欄、列數連續」的部件，
-    // 合併成一顆縱向長條（例如 LongL 那根 3 格高的柱子）。不限制列的位置（含最底部那一列也會考慮），
-    // 因為只挑「本來就沒被橫向合併吃掉的孤立單格」這個條件本身就足夠保護 Plus/BigCorner 這種
-    // 原本就該橫向合併成寬部件的結構了（寬部件 tileCount>=2，不會被這裡挑中）。
     const singleCellsByCol = {};
     parts.forEach(p => {
       if (p.tileCount === 1) {
@@ -449,7 +497,7 @@ const WORKER_SOURCE = `
         const runLen = j - i + 1;
         if (runLen >= 2) {
           const first = list[i], last = list[j];
-          const vbox = Bodies.rectangle(first.position.x, (first.position.y + last.position.y) / 2, TILE_SIZE, runLen * TILE_SIZE, {});
+          const vbox = Bodies.rectangle(first.position.x, (first.position.y + last.position.y) / 2, TILE_SIZE - SHRINK, (runLen * TILE_SIZE) - SHRINK, {});
           vbox.tileCount = runLen; vbox.vertical = true; verticalParts.push(vbox);
           for (let k = i; k <= j; k++) removeSet.add(list[k]);
         }
@@ -459,39 +507,37 @@ const WORKER_SOURCE = `
     const finalParts = parts.filter(p => !removeSet.has(p)).concat(verticalParts);
 
     const compoundBody = Body.create({ parts: finalParts, isStatic, friction: fr, frictionStatic: frS, frictionAir: sharedFrictionAir, restitution: 0, density: sharedDensity });
-    // 不再呼叫 Body.setPosition：每個 part 在建立時，位置已經是用「外框中心 (x,y)」算好的絕對座標，
-    // Body.create 會自動用這些 part 算出正確的重心，不需要（也不應該）再對齊一次——
-    // Body.setPosition 對齊的是「重心」而不是「外框中心」，對不對稱形狀（例如J型旋轉後）會造成位移偏差。
     compoundBody.customColor = color; Composite.add(engine.world, compoundBody); return compoundBody;
   }
 
   function createFragmentedBase() {
-    // 【純驗證用】把底座每一格都建立成完全獨立的靜態剛體，不合併，用來實測碎片化底座
-    // 會不會讓落在上面的方塊產生多重共面接觸的抖動。
-    const baseMatrix = [
-      [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
-      [1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-    ];
-    const rows = baseMatrix.length, cols = baseMatrix[0].length;
-    const totalWidth = cols * TILE_SIZE;
+    const totalWidth = 14 * TILE_SIZE;
     const startX = CANVAS_WIDTH / 2 - totalWidth / 2 + TILE_SIZE / 2;
-    const bodies = [];
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        if (baseMatrix[r][c] === 1) {
-          const px = startX + c * TILE_SIZE;
-          const py = INITIAL_BASE_Y - ((rows - 1) / 2 - r) * TILE_SIZE;
-          const cell = Bodies.rectangle(px, py, TILE_SIZE, TILE_SIZE, {
-            isStatic: true, friction: baseFriction, frictionStatic: baseFrictionStatic, frictionAir: sharedFrictionAir, restitution: 0
-          });
-          cell.customColor = '#546e7a';
-          cell.tileGrid = { rows: 1, cols: 1, tileSize: TILE_SIZE };
-          Composite.add(engine.world, cell);
-          bodies.push(cell);
-        }
-      }
-    }
-    return bodies;
+    const endX = CANVAS_WIDTH / 2 + totalWidth / 2 - TILE_SIZE / 2;
+    const topY = INITIAL_BASE_Y - TILE_SIZE / 2;
+    const bottomY = INITIAL_BASE_Y + TILE_SIZE / 2;
+
+    const leftWall = Bodies.rectangle(startX, topY, TILE_SIZE, TILE_SIZE, {});
+    leftWall.tileCount = 1; leftWall.vertical = true;
+    
+    const rightWall = Bodies.rectangle(endX, topY, TILE_SIZE, TILE_SIZE, {});
+    rightWall.tileCount = 1; rightWall.vertical = true;
+    
+    const floor = Bodies.rectangle(CANVAS_WIDTH / 2, bottomY, 14 * TILE_SIZE, TILE_SIZE, {});
+    floor.tileCount = 14; floor.vertical = false; floor.__row = 1; floor.__col = 0;
+
+    const baseBody = Body.create({
+      parts: [leftWall, rightWall, floor],
+      isStatic: true, 
+      friction: baseFriction, 
+      frictionStatic: baseFrictionStatic, 
+      frictionAir: sharedFrictionAir, 
+      restitution: 0,
+      density: sharedDensity
+    });
+    baseBody.customColor = '#546e7a';
+    Composite.add(engine.world, baseBody);
+    return [baseBody];
   }
 
   function getBodyCellCount(b) {
@@ -512,7 +558,6 @@ const WORKER_SOURCE = `
 
   function dropCurrentBlock() {
     gameState = 'DROP_WAIT'; hasTouched = false; touchTime = 0; stableSince = null; stabilitySnapshot = null; totalPlacementCount++;
-    // 雙人掉落對決模式：放置本身不再給分，改成掉出畫面外才得分（見 processFallenBlocks）
     currentDroppedBody = createPhysicsBodyFromMatrix(posX, posY, activeMatrix, activeShape.color, false); placedBodies.push(currentDroppedBody);
   }
 
@@ -523,53 +568,49 @@ const WORKER_SOURCE = `
 
     if (gameMode === 'solo') {
       playerDrops[1] += fallen.length;
-      if (gameState !== 'GAME_OVER' && playerDrops[1] >= 11) endGame('挑戰結束', '累積掉落 11 個方塊，總共成功放置了 ' + Math.max(0, totalPlacementCount - playerDrops[1]) + ' 顆！');
-      else lastDropWarningMsg = '⚠️ 方塊掉落！(累積 ' + playerDrops[1] + '/11 個)';
+      if (gameState !== 'GAME_OVER' && playerDrops[1] >= 11) endGame('Game Over', 'Dropped 11 blocks. Safe blocks: ' + Math.max(0, totalPlacementCount - playerDrops[1]));
+      else lastDropWarningMsg = '⚠️ Drop! (' + playerDrops[1] + '/11)';
     } else if (gameMode === 'coop') {
       sharedDropCount += fallen.length;
-      if (gameState !== 'GAME_OVER' && sharedDropCount >= 11) endGame('合作失敗', '雙方共同累積掉落達到 11 個上限！');
-      else lastDropWarningMsg = '⚠️ 方塊掉落！(雙方共同累積 ' + sharedDropCount + '/11 個)';
+      if (gameState !== 'GAME_OVER' && sharedDropCount >= 11) endGame('You Lose!', 'You dropped 11 blocks together!');
+      else lastDropWarningMsg = '⚠️ Drop! (Team: ' + sharedDropCount + '/11)';
     } else if (gameMode === 'pvp-score') {
-      // 掉出畫面外＝得分：依掉出去的方塊格數計分，歸屬給「掉出去當下輪到誰的回合」
       let totalCells = 0;
       fallen.forEach(b => { totalCells += getBodyCellCount(b); });
       playerScores[currentPlayer] += totalCells;
-      lastDropWarningMsg = '✨ P' + currentPlayer + ' 方塊掉出畫面外！獲得 ' + totalCells + ' 分 (目前 ' + playerScores[currentPlayer] + ' 分)';
+      lastDropWarningMsg = '✨ P' + currentPlayer + ' scored ' + totalCells + ' pts! (Total: ' + playerScores[currentPlayer] + ')';
       if (gameState !== 'GAME_OVER' && playerScores[currentPlayer] >= PVP_SCORE_TARGET) {
-        endGame('P' + currentPlayer + ' 獲勝！', 'P' + currentPlayer + ' 達成 ' + PVP_SCORE_TARGET + ' 分！');
+        endGame('P' + currentPlayer + ' Wins!', 'P' + currentPlayer + ' reached ' + PVP_SCORE_TARGET + ' points!');
       }
     } else {
       playerDrops[currentPlayer] += fallen.length;
-      if (gameState !== 'GAME_OVER' && playerDrops[currentPlayer] >= 11) endGame('P' + (currentPlayer === 1 ? 2 : 1) + ' 獲勝！', 'P' + currentPlayer + ' 累積掉落 11 個方塊達到上限！');
-      else lastDropWarningMsg = '⚠️ P' + currentPlayer + ' 方塊掉落！(累積 ' + playerDrops[currentPlayer] + '/11 個)';
+      if (gameState !== 'GAME_OVER' && playerDrops[currentPlayer] >= 11) endGame('P' + (currentPlayer === 1 ? 2 : 1) + ' Wins!', 'P' + currentPlayer + ' dropped 11 blocks!');
+      else lastDropWarningMsg = '⚠️ P' + currentPlayer + ' Drop! (' + playerDrops[currentPlayer] + '/11)';
     }
   }
 
   function finishTurn() {
     if (gameState === 'GAME_OVER') return;
     currentDroppedBody = null; hasTouched = false;
-    if (getHighestY() <= 60) { endGame('平局！', '積木塔已堆疊至頂端！'); return; }
+    if (getHighestY() <= 60) { endGame('Draw!', 'The tower is too high!'); return; }
 
     if (gameMode !== 'solo') currentPlayer = currentPlayer === 1 ? 2 : 1;
     selectedCardIndex = 0; gameState = 'SELECT_CARD';
     turnStartTime = Date.now();
   }
 
-  // 雙人掉落對決模式專屬：一回合（選牌+放置）限時，時間到沒放下就扣分換人，
-  // 判斷點是「按下 E 放置的那個瞬間」，不是掉到底才算，避免有人用緩慢滑落拖時間搶分。
   function handleTurnTimeout() {
     if (gameState === 'GAME_OVER') return;
     playerScores[currentPlayer] -= 1;
     if (playerScores[currentPlayer] < PVP_SCORE_LOSE_THRESHOLD) playerScores[currentPlayer] = PVP_SCORE_LOSE_THRESHOLD;
     if (playerScores[currentPlayer] <= PVP_SCORE_LOSE_THRESHOLD) {
       lastDropWarningMsg = '';
-      endGame('P' + (currentPlayer === 1 ? 2 : 1) + ' 獲勝！', 'P' + currentPlayer + ' 分數過低（' + PVP_SCORE_LOSE_THRESHOLD + ' 分）判負！');
+      endGame('P' + (currentPlayer === 1 ? 2 : 1) + ' Wins!', 'P' + currentPlayer + ' score is too low (' + PVP_SCORE_LOSE_THRESHOLD + ')!');
       return;
     }
     lastDropWarningMsg = playerScores[currentPlayer] === -2
-      ? '⚠️ 警告！P' + currentPlayer + ' 已經 -2 分，再超時一次就判負！'
-      : '⏰ P' + currentPlayer + ' 回合超時！扣 1 分（目前 ' + playerScores[currentPlayer] + ' 分）';
-    // 手上正在選/正在移動的方塊直接作廢，不退回手牌（選牌當下手牌就已經抽換過了，這裡什麼都不用做）
+      ? '⚠️ Warning! P' + currentPlayer + ' is at -2 pts. 1 more time-out = Lose!'
+      : '⏰ P' + currentPlayer + ' Time Out! -1 pt (Total: ' + playerScores[currentPlayer] + ')';
     activeShape = null; activeMatrix = null; currentPlayer = currentPlayer === 1 ? 2 : 1;
     selectedCardIndex = 0; gameState = 'SELECT_CARD'; turnStartTime = Date.now();
   }
@@ -589,9 +630,6 @@ const WORKER_SOURCE = `
     } else if (gameState === 'POSITIONING') {
       const shrink = (gameMode === 'pvp-score') ? MOVE_RANGE_SHRINK : 0;
       const cols = activeMatrix[0].length;
-      // 關鍵：先把邊界本身對齊格線，再拿這個「已經對齊過的邊界」去夾範圍。
-      // 如果反過來（先夾範圍、再對齊格線），格線對齊這一步會把結果推出邊界外一點點，
-      // 造成「按到底又被推回來」的虛影閃爍感——這正是之前發生的原因。
       const leftBound = snapToGrid((cols * TILE_SIZE) / 2 + 6 + shrink, cols);
       const rightBound = snapToGrid(CANVAS_WIDTH - (cols * TILE_SIZE) / 2 - 6 - shrink, cols);
       if (key === 'ARROWLEFT' || key === 'A') posX = Math.max(leftBound, snapToGrid(posX - TILE_SIZE, cols));
@@ -632,12 +670,12 @@ const WORKER_SOURCE = `
       gameMode, sharedDropCount, playerScores, turnStartTime,
       bodies: placedBodies.map(b => ({
         id: b.id,
-        x: Math.round(b.position.x * 10) / 10, y: Math.round(b.position.y * 10) / 10,
-        angle: Math.round(b.angle * 100) / 100, color: b.customColor, tileGrid: b.tileGrid,
+        x: Math.round(b.position.x * 1000) / 1000, y: Math.round(b.position.y * 1000) / 1000,
+        angle: Math.round(b.angle * 1000) / 1000, color: b.customColor, tileGrid: b.tileGrid,
         parts: b.parts.map(p => ({
-          x: Math.round(p.position.x * 10) / 10, y: Math.round(p.position.y * 10) / 10,
+          x: Math.round(p.position.x * 1000) / 1000, y: Math.round(p.position.y * 1000) / 1000,
           tileCount: p.tileCount, vertical: !!p.vertical,
-          vertices: p.vertices.map(v => ({ x: Math.round(v.x * 10) / 10, y: Math.round(v.y * 10) / 10 }))
+          vertices: p.vertices.map(v => ({ x: Math.round(v.x * 1000) / 1000, y: Math.round(v.y * 1000) / 1000 }))
         }))
       }))
     });
@@ -654,25 +692,20 @@ const WORKER_SOURCE = `
       sharedDensity = msg.density;
       physicsSubsteps = Math.max(1, Math.round(msg.substeps));
       engine.gravity.y = msg.gravity;
-      // 即時套用到場上「目前已經存在」的方塊，方便調校時馬上看到效果，不用等重新開始
       placedBodies.forEach(b => {
         b.friction = b.isStatic ? baseFriction : blockFriction;
         b.frictionStatic = b.isStatic ? baseFrictionStatic : blockFrictionStatic;
         b.frictionAir = sharedFrictionAir;
-        // 【修正已知 Matter.js bug】對 isStatic 的物體呼叫 Body.setDensity 會讓它的質量/慣性資料
-        // 被錯誤地重新計算成有限值（靜態物體理論上該是無限質量），導致疊在上面的東西行為異常甚至消失。
-        // 底座是唯一的靜態物體，這裡明確跳過，只對真正會動的方塊套用。
         if (!b.isStatic) Body.setDensity(b, sharedDensity);
       });
     }
     else if (msg.type === 'SET_FORCED_SHAPE') {
-      forcedShape = msg.shape; // null = 恢復正常隨機抽牌；否則之後每次抽牌都固定回傳這個形狀
+      forcedShape = msg.shape; 
       if (forcedShape) {
         for (let i = 0; i < sharedHand.length; i++) sharedHand[i] = cloneShape(forcedShape);
       }
     }
     else if (msg.type === 'REFRESH_HAND') {
-      // 只重抽目前可選的前三張，候補的兩張（索引3、4）維持不變
       if (sharedHand.length >= 3) {
         sharedHand[0] = getRandomShape();
         sharedHand[1] = getRandomShape();
@@ -681,7 +714,7 @@ const WORKER_SOURCE = `
     }
   };
 
-  setInterval(tick, 1000 / 60); // 用 setInterval 驅動，不受分頁可見性節流影響
+  setInterval(tick, 1000 / 60);
 `;
 
 let physicsWorker = null;
@@ -691,17 +724,15 @@ function createPhysicsWorker() {
   const blob = new Blob([WORKER_SOURCE], { type: 'application/javascript' });
   physicsWorker = new Worker(URL.createObjectURL(blob));
 
-  // 標準 Worker API：Worker 內任何沒被 try/catch 接住的例外，都會觸發這裡，
-  // 這是排查「Worker 完全沒反應」這種問題最直接的管道。
   physicsWorker.onerror = (e) => {
-    console.error('Worker 發生錯誤:', e.message, e);
-    alert('Worker 初始化失敗，請截圖瀏覽器主控台(F12)的錯誤訊息回報：\n' + e.message);
+    console.error('Worker Error:', e.message, e);
+    alert('Worker failed. Press F12 to check errors:\n' + e.message);
   };
 
   physicsWorker.onmessage = (e) => {
     if (e.data.type === 'ERROR') {
-      console.error('[Worker回報錯誤]', e.data.message);
-      alert('Worker 內部發生錯誤，請截圖瀏覽器主控台(F12)的錯誤訊息回報：\n' + e.data.message);
+      console.error('[Worker Error]', e.data.message);
+      alert('Worker error. Press F12 to check errors:\n' + e.data.message);
       return;
     }
     if (e.data.type !== 'STATE') return;
@@ -719,9 +750,6 @@ function createPhysicsWorker() {
 
     updateUI(); renderHandCards();
 
-    // 廣播觸發點放在這裡（Worker 訊息到達的事件），而不是 rAF 迴圈裡——
-    // 這是整個架構的關鍵：就算主執行緒的 rAF 被節流到幾乎停擺，
-    // Worker→主執行緒的 postMessage 依然會照常送達，廣播不會跟著停。
     workerMsgCount++;
     if (workerMsgCount % 2 === 0) broadcastState();
     drawFrame();
@@ -735,7 +763,6 @@ function showModal(title, desc) {
 }
 function hideModal() { document.getElementById('modalOverlay').classList.remove('active'); }
 
-// --- 線上對戰 (PeerJS) 變數與邏輯 ---
 let peer = null;
 let conn = null;
 let myRole = null;
@@ -745,11 +772,11 @@ function copyRoomId(id) {
   const btn = document.getElementById('copyBtn');
   const showCopied = () => {
     if (!btn) return;
-    btn.innerText = '✅ 已複製！';
+    btn.innerText = '✅ Copied!';
     btn.style.background = '#059669';
     btn.style.borderColor = '#047857';
     setTimeout(() => {
-      btn.innerText = '📋 複製 ID';
+      btn.innerText = '📋 Copy ID';
       btn.style.background = '#3f3f46';
       btn.style.borderColor = '#52525b';
     }, 2000);
@@ -773,20 +800,15 @@ function fallbackCopy(text, onSuccess) {
     document.execCommand('copy');
     onSuccess();
   } catch (err) {
-    alert('自動複製失敗，請手動選取房間 ID 複製：' + text);
+    alert('Copy failed. Please select and copy: ' + text);
   }
   document.body.removeChild(textarea);
 }
 
 let selectedRoomMode = null;
 let currentRoomId = '';
-const MODE_NAMES = { 'coop': '雙人堆疊合作', 'pvp-drops': '雙人堆疊對決', 'pvp-score': '雙人掉落對決' };
+const MODE_NAMES = { 'coop': '2 Players: Team Up', 'pvp-drops': '2 Players: Versus', 'pvp-score': '2 Players: Score' };
 
-// 統一的連線狀態清理：任何會開始一段新連線流程（建房/加入/單人）的入口，
-// 都要先呼叫這個，確保不會有殘留的舊 Worker、舊連線還在背景搶著更新畫面。
-// 關鍵是 physicsWorker.terminate()——之前有些地方只是把變數設成 null，
-// 但背景那個 Worker 執行緒沒有真的被停止，還是會繼續跑、繼續呼叫 updateUI()/drawFrame()，
-// 跟後來真正建立的連線互相打架，就是「兩個網頁互相建房又加入」會閃爍的根本原因。
 function resetConnectionState() {
   try { if (physicsWorker) physicsWorker.terminate(); } catch (e) {}
   try { if (conn) conn.close(); } catch (e) {}
@@ -799,18 +821,18 @@ function renderConnectPanel(mode, code) {
   const panel = document.getElementById('connectPanel');
   if (mode === null) {
     panel.className = 'connect-panel';
-    panel.innerHTML = `<div class="connect-placeholder">雙人遊玩請 P1 先選擇<br>左側的雙人模式</div>`;
+    panel.innerHTML = `<div class="connect-placeholder">For 2 players, P1 must<br>choose a mode first.</div>`;
     return;
   }
   panel.className = 'connect-panel has-content';
   panel.innerHTML = `
-    <div style="font-size:0.72rem; color:#a8a29e;">正在建立</div>
+    <div style="font-size:0.72rem; color:#a8a29e;">Making Room</div>
     <div style="color:#e2e8f0; font-weight:700; font-size:0.85rem;">${MODE_NAMES[mode]}</div>
-    <div style="font-size:0.72rem; color:#a8a29e; margin-top:4px;">房間代碼</div>
-    <div class="code-text" id="connectCodeText">${code || '連線中...'}</div>
-    <button id="copyBtn" class="btn-copy" onclick="copyCurrentRoomId()">📋 複製 ID</button>
-    <div class="waiting-text">等待朋友連線中...</div>
-    <button class="btn-cancel" onclick="cancelRoomCreation()">取消建立遊戲</button>
+    <div style="font-size:0.72rem; color:#a8a29e; margin-top:4px;">Room ID</div>
+    <div class="code-text" id="connectCodeText">${code || 'Connecting...'}</div>
+    <button id="copyBtn" class="btn-copy" onclick="copyCurrentRoomId()">📋 Copy ID</button>
+    <div class="waiting-text">Waiting for friend...</div>
+    <button class="btn-cancel" onclick="cancelRoomCreation()">Cancel</button>
   `;
 }
 
@@ -837,7 +859,7 @@ function createRoom(mode) {
 
   peer.on('error', (err) => {
     const codeEl = document.getElementById('connectCodeText');
-    if (codeEl) codeEl.innerText = '建立失敗';
+    if (codeEl) codeEl.innerText = 'Failed';
   });
 }
 
@@ -847,16 +869,16 @@ function startSoloChallenge() {
   myRole = 'P1';
   createPhysicsWorker();
   document.getElementById('lobbyOverlay').classList.remove('active');
-  document.getElementById('p1Title').innerText = '玩家 P1 (你)';
-  document.getElementById('p2Title').innerText = '玩家 P2';
+  document.getElementById('p1Title').innerText = 'Player 1 (You)';
+  document.getElementById('p2Title').innerText = 'Player 2';
   physicsWorker.postMessage({ type: 'INIT', mode: 'solo' });
 }
 
 function selectRoomMode(mode, btnEl) {
   document.activeElement.blur();
-  if (selectedRoomMode === mode) return; // 重複點同一個模式，什麼都不做
+  if (selectedRoomMode === mode) return; 
 
-  resetConnectionState(); // 不管前面是建過房、加入過別人、還是單人測試過，一律先徹底清乾淨
+  resetConnectionState(); 
 
   [...document.getElementById('modeSubstack').children].forEach(el => el.classList.toggle('selected', el === btnEl));
   renderConnectPanel(mode, null);
@@ -880,12 +902,11 @@ function enterSoloTestMode() {
   myRole = 'P1';
   createPhysicsWorker();
   document.getElementById('lobbyOverlay').classList.remove('active');
-  document.getElementById('p1Title').innerText = '玩家 P1 (單機測試)';
-  document.getElementById('p2Title').innerText = '玩家 P2 (單機測試)';
+  document.getElementById('p1Title').innerText = 'Player 1 (Test)';
+  document.getElementById('p2Title').innerText = 'Player 2 (Test)';
   physicsWorker.postMessage({ type: 'INIT' });
 }
 
-// 摩擦力調校模式的開關：以後想關閉這個通道，把這裡改成 false 即可，不用刪程式碼
 const FRICTION_TUNING_MODE_ENABLED = true;
 
 function sendFrictionToWorker() {
@@ -912,11 +933,11 @@ function toggleJTestMode() {
   jTestForced = !jTestForced;
   const btn = document.getElementById('btnJTest');
   if (jTestForced) {
-    btn.innerText = '✅ J型測試中（點擊關閉）';
+    btn.innerText = '✅ J-Test (Click to stop)';
     btn.classList.add('active-toggle');
     if (physicsWorker) physicsWorker.postMessage({ type: 'SET_FORCED_SHAPE', shape: { name: 'J', color: '#78909c', matrix: [[1, 1], [1, 0], [1, 0]] } });
   } else {
-    btn.innerText = '🧪 強制全部變J型(高3寬2)';
+    btn.innerText = '🧪 All J-Blocks';
     btn.classList.remove('active-toggle');
     if (physicsWorker) physicsWorker.postMessage({ type: 'SET_FORCED_SHAPE', shape: null });
   }
@@ -928,11 +949,10 @@ function enterFrictionTuningMode() {
   myRole = 'P1';
   createPhysicsWorker();
   document.getElementById('lobbyOverlay').classList.remove('active');
-  document.getElementById('p1Title').innerText = '玩家 P1 (摩擦力調校)';
-  document.getElementById('p2Title').innerText = '玩家 P2 (摩擦力調校)';
+  document.getElementById('p1Title').innerText = 'Player 1 (Tune)';
+  document.getElementById('p2Title').innerText = 'Player 2 (Tune)';
   document.getElementById('frictionTunePanel').classList.add('active');
   physicsWorker.postMessage({ type: 'INIT' });
-  // 進場先把目前預設值送一次，確保跟畫面上輸入框顯示的一致
   sendFrictionToWorker();
 }
 
@@ -941,16 +961,16 @@ function joinRoom() {
   const targetId = document.getElementById('roomInput').value.trim();
   if (targetId === '12345') { enterSoloTestMode(); return; }
   if (targetId === '23456') {
-    if (!FRICTION_TUNING_MODE_ENABLED) { alert('這個測試模式目前未開放'); return; }
+    if (!FRICTION_TUNING_MODE_ENABLED) { alert('This test mode is closed.'); return; }
     enterFrictionTuningMode();
     return;
   }
-  if (!targetId) return alert('請輸入房間 ID');
+  if (!targetId) return alert('Please enter a Room ID.');
 
-  resetConnectionState(); // 關鍵：如果這個分頁之前建過房、還沒清掉，這裡先徹底清乾淨再加入
+  resetConnectionState(); 
   peer = new Peer();
   myRole = 'P2';
-  document.getElementById('lobbyStatus').innerText = '正在連線至房間...';
+  document.getElementById('lobbyStatus').innerText = 'Connecting...';
 
   peer.on('open', () => {
     conn = peer.connect(targetId, { reliable: true });
@@ -958,8 +978,8 @@ function joinRoom() {
   });
 
   peer.on('error', (err) => {
-    alert('連線失敗，請確認房間 ID 是否正確');
-    document.getElementById('lobbyStatus').innerText = '連線失敗，請重試。';
+    alert('Connection failed. Check Room ID.');
+    document.getElementById('lobbyStatus').innerText = 'Failed to connect. Try again.';
   });
 }
 
@@ -967,17 +987,17 @@ function setupConnection() {
   conn.on('open', () => {
     if (document.activeElement) document.activeElement.blur();
     document.getElementById('lobbyOverlay').classList.remove('active');
-    document.getElementById('p1Title').innerText = myRole === 'P1' ? '玩家 P1 (你)' : '玩家 P1';
-    document.getElementById('p2Title').innerText = myRole === 'P2' ? '玩家 P2 (你)' : '玩家 P2';
+    document.getElementById('p1Title').innerText = myRole === 'P1' ? 'Player 1 (You)' : 'Player 1';
+    document.getElementById('p2Title').innerText = myRole === 'P2' ? 'Player 2 (You)' : 'Player 2';
     if (myRole === 'P2') document.getElementById('btnRestart').style.display = 'none';
   });
 
   conn.on('error', (err) => {
-    console.error('連線發生錯誤:', err);
+    console.error('Connection error:', err);
   });
 
   conn.on('close', () => {
-    console.warn('連線已關閉');
+    console.warn('Connection closed');
   });
 
   conn.on('data', (data) => {
@@ -990,30 +1010,25 @@ function setupConnection() {
         if (data.type === 'SYNC') applySyncedState(data.state);
       }
     } catch (err) {
-      console.error('處理收到的資料時發生例外:', err);
+      console.error('Error parsing data:', err);
     }
   });
 }
 
-// 壓縮浮點數，解決網路塞車與延遲問題
-const roundNum = (num) => Math.round(num * 10) / 10;
+const roundNum = (num) => Math.round(num * 1000) / 1000;
 
 function broadcastState() {
-  if (myRole !== 'P1' || !conn || !conn.open) return; // conn.open 還是 false 代表資料通道還沒真正打開，先跳過，下一次 tick 會自動補上
+  if (myRole !== 'P1' || !conn || !conn.open) return; 
   const snapshot = {
     gameState, currentPlayer, playerDrops, sharedHand,
     posX: roundNum(posX), posY: roundNum(posY), activeMatrix, activeShape, countdownValue,
     selectedCardIndex, lastDropWarningMsg, hasTouched, touchTime, modalTitle, modalDesc,
     gameMode, sharedDropCount, playerScores, turnStartTime,
-    bodies: localBodies // Worker 傳回來時已經序列化、四捨五入過了，直接轉發即可
+    bodies: localBodies 
   };
-  try { conn.send({ type: 'SYNC', state: snapshot }); } catch (e) { console.error('廣播失敗:', e); }
+  try { conn.send({ type: 'SYNC', state: snapshot }); } catch (e) { console.error('Broadcast failed:', e); }
 }
 
-// --- P2 端：物理搖晃內插補間 ---
-// 主機每約 33ms（2 次 Worker 訊息）廣播一次快照，P2 端刻意把畫面渲染的時間點往回拉一小段
-// （INTERP_DELAY_MS），讓渲染當下永遠介於「已經收到的兩筆真實快照」之間，用線性內插畫出
-// 中間過渡的每一影格（60fps），而不需要做風險較高的「往未來外推」。
 let prevSnapshot = null;
 let currSnapshot = null;
 const INTERP_DELAY_MS = 90;
@@ -1069,14 +1084,9 @@ function applySyncedState(state) {
   updateUI(); renderHandCards();
   if (gameState === 'GAME_OVER') showModal(state.modalTitle, state.modalDesc);
   else hideModal();
-  // 立即手動重繪一次：背景分頁的 requestAnimationFrame 動畫迴圈會被瀏覽器大幅節流，
-  // 只依賴動畫迴圈會導致 P2 分頁沒被聚焦時畫面完全沒反應；資料一到就強制畫一次可以避開這個限制
   drawFrame();
 }
 
-// --- 主執行緒共用常數 / 鏡像狀態 ---
-// 這些常數/變數在 Worker 內也各自有一份（Worker 是獨立記憶體空間，無法共用），
-// 主執行緒這邊只用來：畫面渲染、DOM 更新、P2 的客戶端預測。
 const TILE_SIZE = 24; const CANVAS_WIDTH = 440; const CANVAS_HEIGHT = 600;
 const BASE_LEFT_X = CANVAS_WIDTH / 2 - (14 * TILE_SIZE) / 2;
 const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
@@ -1085,9 +1095,9 @@ let gameState = 'SELECT_CARD', currentPlayer = 1, playerDrops = { 1: 0, 2: 0 }, 
 let sharedHand = [], selectedCardIndex = 0, activeShape = null, activeMatrix = null;
 let posX = CANVAS_WIDTH / 2, posY = 200, countdownValue = 3;
 let hasTouched = false, touchTime = 0;
-let modalTitle = '', modalDesc = ''; // 修正：之前沒宣告，導致意外抓到同名的 <div id="modalTitle"> DOM 元素
+let modalTitle = '', modalDesc = ''; 
 let gameMode = 'pvp-drops', sharedDropCount = 0, playerScores = { 1: 0, 2: 0 }, turnStartTime = 0;
-let localBodies = []; // P1 端：從 Worker 鏡像過來的方塊列表
+let localBodies = []; 
 
 function snapToGrid(px, cols) { const hw = (cols * TILE_SIZE) / 2; const le = px - hw; const sle = BASE_LEFT_X + Math.round((le - BASE_LEFT_X) / TILE_SIZE) * TILE_SIZE; return sle + hw; }
 function rotateMatrixClockwise(matrix) {
@@ -1107,7 +1117,7 @@ function updateUI() {
     p1Badge.innerText = `${playerDrops[1]} / 11`;
     p1Badge.className = `drop-badge ${playerDrops[1] > 0 ? 'warn' : ''}`;
     p2Card.className = 'player-card player-card-disabled';
-    p2Badge.innerText = '－';
+    p2Badge.innerText = '-';
     p2Badge.className = 'drop-badge';
   } else if (gameMode === 'coop') {
     p1Badge.innerText = `${sharedDropCount} / 11`;
@@ -1131,19 +1141,17 @@ function updateUI() {
 
   const statusCard = document.getElementById('statusCard');
   if (lastDropWarningMsg) statusCard.innerHTML = `<span class="warning-msg">${lastDropWarningMsg}</span>`;
-  else if (gameState === 'SELECT_CARD') statusCard.innerHTML = `P${currentPlayer} 回合：請在右側選擇 (<span class="key">E</span> 選定)`;
-  else if (gameState === 'POSITIONING') statusCard.innerHTML = `P${currentPlayer} 放置中`;
+  else if (gameState === 'SELECT_CARD') statusCard.innerHTML = `P${currentPlayer}'s Turn: Choose a block (<span class="key">E</span>)`;
+  else if (gameState === 'POSITIONING') statusCard.innerHTML = `P${currentPlayer} is placing...`;
   else if (gameState === 'DROP_WAIT') {
-    if (!hasTouched) statusCard.innerHTML = `方塊下落中...`;
+    if (!hasTouched) statusCard.innerHTML = `Falling...`;
     else {
       const elapsed = Date.now() - touchTime;
-      if (elapsed < 1000) statusCard.innerHTML = `下落接觸！判定平穩中 (1秒內)...`;
-      else statusCard.innerHTML = `⚠️ 仍未靜止！進入 <b>安定倒數 ${Math.max(1, Math.ceil((4000 - elapsed) / 1000))} 秒</b>...`;
+      if (elapsed < 1000) statusCard.innerHTML = `Touched! Checking...`;
+      else statusCard.innerHTML = `⚠️ Still moving! <b>Safe in ${Math.max(1, Math.ceil((4000 - elapsed) / 1000))} s</b>...`;
     }
   }
 
-  // 安定倒數計時器 UI：用同步過來的 hasTouched/touchTime 判斷，P1、P2 現在共用同一套邏輯，
-  // 不再像過去那樣只有 P1 才會顯示這個提示。
   if (gameState === 'DROP_WAIT' && hasTouched) {
     const elapsed = Date.now() - touchTime;
     if (elapsed >= 1000) showTopRightTimer(Math.max(1, Math.ceil((4000 - elapsed) / 1000)));
@@ -1152,9 +1160,6 @@ function updateUI() {
     hideTopRightTimer();
   }
 
-  // 雙人掉落對決模式的回合限時倒數：只有輪到誰、誰那邊才顯示
-  // 用 visibility 而不是 display 切換：計時器永遠佔著同一塊版面空間，不管顯示與否，
-  // 這樣旁邊的玩家卡片寬度才不會跟著忽大忽小（這正是之前「卡片一直撐開去碰計時器」的根因）。
   const p1Timer = document.getElementById('p1TurnTimer');
   const p2Timer = document.getElementById('p2TurnTimer');
   if (gameMode === 'pvp-score' && (gameState === 'SELECT_CARD' || gameState === 'POSITIONING')) {
@@ -1209,12 +1214,6 @@ function drawMatrixToCanvas(targetCtx, matrix, color, centerX, centerY, tileSize
 function showTopRightTimer(val) { document.getElementById('topRightTimer').classList.add('active'); document.getElementById('timerVal').innerText = val; }
 function hideTopRightTimer() { document.getElementById('topRightTimer').classList.remove('active'); }
 
-// --- P2 端：客戶端預測 ---
-// 「選手牌、左右移動、旋轉、取消」這幾個動作是純粹的格子/索引運算，不涉及亂數或物理，
-// P2 可以放心在本地立即套用一份預測結果（操作手感接近零延遲），同時仍把按鍵送給 P1 走一遍權威邏輯，
-// 之後主機廣播回來的狀態會自動覆蓋校正，兩邊算出來的結果理論上應該一致，不會有明顯的跳動修正。
-// 唯獨「E / Enter」不做預測：它會觸發亂數抽牌、啟動倒數計時器、甚至建立真正的物理方塊，
-// 這些都必須只由 P1 那份權威模擬（現在是 Worker）執行一次，不能兩邊各做一次。
 function handleLocalPredictionInput(key) {
   if (gameState === 'SELECT_CARD') {
     if (key === 'ARROWUP' || key === 'ARROWLEFT' || key === 'A') { selectedCardIndex = (selectedCardIndex + 2) % 3; renderHandCards(); }
@@ -1232,33 +1231,21 @@ function handleLocalPredictionInput(key) {
       const newLeftBound = snapToGrid((newCols * TILE_SIZE) / 2 + 6 + shrink, newCols);
       const newRightBound = snapToGrid(CANVAS_WIDTH - (newCols * TILE_SIZE) / 2 - 6 - shrink, newCols);
       posX = Math.min(newRightBound, Math.max(newLeftBound, snapToGrid(posX, newCols)));
-      // 注意：這裡刻意不預測 posY（旋轉後的出生高度），因為它要依賴目前堆疊的真實高度，
-      // P2 本地並沒有在跑物理模擬、抓不到正確的堆疊資訊；posY 留給下一次主機廣播來校正即可，
-      // 落差通常在一個廣播週期內（約 30~60ms）就會被修正，不明顯。
     }
   }
   drawFrame();
 }
 
-// 修正：加入 e.preventDefault 避免網頁捲動與干擾焦點
-window.addEventListener('keydown', (e) => {
-  const keyStr = e.key.toUpperCase();
-  const gameKeys = ['ARROWUP', 'ARROWDOWN', 'ARROWLEFT', 'ARROWRIGHT', ' ', 'ENTER', 'W', 'A', 'S', 'D', 'E', 'R'];
-
-  if (gameKeys.includes(keyStr) && e.target.tagName !== 'INPUT') {
-    e.preventDefault();
-  }
-
-  // 單機測試模式：不用連線，兩位玩家的回合都直接由同一個鍵盤操作
+// 統整遊戲操作邏輯，支援鍵盤與觸控按鈕
+function triggerGameInput(keyStr) {
   if (isSoloTestMode) {
     if (physicsWorker) physicsWorker.postMessage({ type: 'KEY', key: keyStr });
     return;
   }
 
-  // P2 把指令送給 P1，同時（除了 E/Enter）在本地立即做客戶端預測
   if (myRole === 'P2') {
     if (currentPlayer === 2 && conn) {
-      try { conn.send({ type: 'KEY_INPUT', key: keyStr }); } catch (err) { console.error('送出按鍵失敗:', err); }
+      try { conn.send({ type: 'KEY_INPUT', key: keyStr }); } catch (err) { console.error('Key send failed:', err); }
       if (keyStr !== 'E' && keyStr !== 'ENTER') {
         handleLocalPredictionInput(keyStr);
       }
@@ -1266,11 +1253,60 @@ window.addEventListener('keydown', (e) => {
     return;
   }
 
-  // P1 自己按鍵：丟給 Worker 處理，不在主執行緒直接算物理/遊戲邏輯
   if (myRole === 'P1' && currentPlayer === 1 && physicsWorker) {
     physicsWorker.postMessage({ type: 'KEY', key: keyStr });
   }
+}
+
+window.addEventListener('keydown', (e) => {
+  const keyStr = e.key.toUpperCase();
+  const gameKeys = ['ARROWUP', 'ARROWDOWN', 'ARROWLEFT', 'ARROWRIGHT', ' ', 'ENTER', 'W', 'A', 'S', 'D', 'E', 'R'];
+
+  if (gameKeys.includes(keyStr) && e.target.tagName !== 'INPUT') {
+    e.preventDefault();
+    triggerGameInput(keyStr);
+  }
 });
+
+// 綁定虛擬觸控按鈕 (防縮放防長按)
+function bindVirtualButton(id, keyStr) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); 
+    triggerGameInput(keyStr);
+  });
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+bindVirtualButton('btn-left', 'ARROWLEFT');
+bindVirtualButton('btn-right', 'ARROWRIGHT');
+bindVirtualButton('btn-rotate', 'R');
+bindVirtualButton('btn-rotate-left', 'R');
+bindVirtualButton('btn-drop', 'E');
+
+// 模式切換邏輯
+function toggleControlMode() {
+  const vc = document.getElementById('virtual-controls');
+  if (vc.classList.contains('mode-a')) {
+    vc.classList.remove('mode-a');
+    vc.classList.add('mode-b');
+  } else {
+    vc.classList.remove('mode-b');
+    vc.classList.add('mode-a');
+  }
+}
+
+// 全螢幕切換邏輯
+function toggleFullScreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(err => {
+      console.warn(`Fullscreen error: ${err.message}`);
+    });
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen();
+  }
+}
 
 function resetGame() { if (myRole === 'P1' && physicsWorker) physicsWorker.postMessage({ type: 'INIT' }); }
 
@@ -1278,8 +1314,6 @@ function drawFrame() {
   ctx.fillStyle = "#141417"; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   ctx.save(); ctx.strokeStyle = '#b71c1c'; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(0, 60); ctx.lineTo(CANVAS_WIDTH, 60); ctx.stroke(); ctx.restore();
 
-  // P1、P2 現在用的是同一種「純資料」方塊格式（Worker 傳回來的，或網路同步過來的），
-  // 可以共用同一段繪製邏輯，不用再分開寫。
   const bodiesToRender = myRole === 'P1' ? localBodies : (myRole === 'P2' ? getInterpolatedBodies() : []);
   bodiesToRender.forEach(body => {
     ctx.fillStyle = body.color || '#94a3b8'; ctx.strokeStyle = '#18181c'; ctx.lineWidth = 1;
@@ -1306,9 +1340,6 @@ function drawFrame() {
   }
 }
 
-// 主執行緒的 rAF 迴圈現在只負責「畫面渲染」，不再跑任何物理/遊戲邏輯/廣播——
-// 就算這個迴圈被瀏覽器節流到幾乎停擺，P1 這邊 Worker 裡的物理模擬跟廣播
-// （透過 worker.onmessage 觸發）依然會持續進行，P2 那邊也一樣不受影響。
 function renderLoop() {
   drawFrame();
   requestAnimationFrame(renderLoop);
@@ -1316,8 +1347,7 @@ function renderLoop() {
 
 requestAnimationFrame(renderLoop);
 
-// --- 大廳圖示：用遊戲內「閃電型」方塊（S型旋轉成直向）的實際造型畫出來，不用網路表情符號 ---
-const LOBBY_LIGHTNING_MATRIX = [[1, 0], [1, 1], [0, 1]]; // S 型旋轉後的直向閃電形狀
+const LOBBY_LIGHTNING_MATRIX = [[1, 0], [1, 1], [0, 1]]; 
 function renderLobbyLightningIcon(containerId, color, size = 9) {
   const el = document.getElementById(containerId);
   if (!el) return;
@@ -1346,35 +1376,5 @@ renderLobbyTwoLightning('iconPvpDrops', '#c6b7b2', '#cbbe93');
 renderLobbyTwoLightning('iconPvpScore', '#c6b7b2', '#cbbe93');
 </script>
 
-<div id="frictionTunePanel">
-  <h4>物理參數調校（測試模式）</h4>
-  <label>底座 friction <input type="number" step="0.01" id="tuneBaseFriction" value="1.8"></label>
-  <label>底座 frictionStatic <input type="number" step="0.01" id="tuneBaseFrictionStatic" value="1.8"></label>
-  <label>方塊 friction <input type="number" step="0.01" id="tuneBlockFriction" value="1.8"></label>
-  <label>方塊 frictionStatic <input type="number" step="0.01" id="tuneBlockFrictionStatic" value="1.8"></label>
-  <label>frictionAir（收斂速度） <input type="number" step="0.01" id="tuneFrictionAir" value="0.06"></label>
-  <div class="tune-hint">frictionAir 越大，晃動收斂越快，但太大會讓真正該倒的動作看起來不自然變慢（超過約0.2容易出現凍結假象）</div>
-  <label>重力 gravity.y <input type="number" step="0.1" id="tuneGravity" value="1.2"></label>
-  <div class="tune-hint">重力越大，翻轉力矩累積越快，但掉落速度與衝擊力道也會變大</div>
-  <label>質量密度 density <input type="number" step="0.0005" id="tuneDensity" value="0.002"></label>
-  <div class="tune-hint">雙面刃：正向力/摩擦力絕對值變大，但轉動慣量也變大，效果方向不一定，需實測</div>
-  <label>物理子步進 substeps <input type="number" step="1" min="1" id="tuneSubsteps" value="2"></label>
-  <div class="tune-hint">越高數值積分越精細，主要影響精確度，不一定加快收斂</div>
-  <div class="tune-hint">點輸入框、打數字、按 Enter 或點別處套用；會立即影響場上目前所有方塊</div>
-  <div class="tune-buttons">
-    <button class="btn-tune" onclick="refreshHandCards_Dev()">🔄 刷新前三張手牌</button>
-    <button class="btn-tune" onclick="resetGame()">♻️ 重新開始</button>
-  </div>
-  <div class="tune-buttons">
-    <button class="btn-tune" id="btnJTest" onclick="toggleJTestMode()">🧪 強制全部變J型(高3寬2)</button>
-  </div>
-</div>
-<script>
-  ['tuneBaseFriction', 'tuneBaseFrictionStatic', 'tuneBlockFriction', 'tuneBlockFrictionStatic', 'tuneFrictionAir', 'tuneGravity', 'tuneDensity', 'tuneSubsteps'].forEach(id => {
-    const el = document.getElementById(id);
-    el.addEventListener('change', sendFrictionToWorker);
-    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { el.blur(); } e.stopPropagation(); });
-  });
-</script>
 </body>
 </html>
