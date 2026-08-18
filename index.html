@@ -21,26 +21,26 @@
       height: 100vh;
       width: 100vw;
       overflow: hidden;
-      padding-top: 16px;
+      padding-top: 6px;
       touch-action: manipulation;
     }
 
     .layout-wrapper { display: flex; flex-direction: row; align-items: flex-start; justify-content: center; gap: 28px; max-height: 95vh; }
-    .side-panel { display: flex; flex-direction: column; gap: 14px; width: 250px; }
-    .center-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .side-panel { display: flex; flex-direction: column; gap: 10px; width: 250px; }
+    .center-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
 
-    .player-card { background: #18181c; border: 1px solid #27272a; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; transition: all 0.3s ease; }
-    .player-card.active-p1 { border-color: #3b82f6; background: #1e293b; box-shadow: 0 0 12px rgba(59, 130, 246, 0.2); }
-    .player-card.active-p2 { border-color: #f97316; background: #2a1b12; box-shadow: 0 0 12px rgba(249, 115, 22, 0.2); }
+    .player-card { background: #18181c; border: 1px solid #27272a; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 4px; transition: all 0.3s ease; width: 100%; }
+    .player-card.active-p1 { border-color: #3b82f6; background: #1e293b; box-shadow: 0 0 10px rgba(59, 130, 246, 0.2); }
+    .player-card.active-p2 { border-color: #f97316; background: #2a1b12; box-shadow: 0 0 10px rgba(249, 115, 22, 0.2); }
     .player-card.player-card-disabled { opacity: 0.35; filter: grayscale(1); }
-    .player-title { font-size: 1rem; font-weight: 700; color: #cbd5e1; }
-    .drop-status { font-size: 0.8rem; color: #71717a; display: flex; align-items: center; gap: 6px; }
-    .drop-badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; background: #27272a; color: #a1a1aa; }
+    .player-title { font-size: 0.85rem; font-weight: 700; color: #cbd5e1; }
+    .drop-status { font-size: 0.75rem; color: #71717a; display: flex; align-items: center; gap: 4px; }
+    .drop-badge { display: inline-block; padding: 1px 4px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; background: #27272a; color: #a1a1aa; }
     .turn-timer-badge {
-      flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
+      display: none; width: 28px; height: 28px; border-radius: 50%;
+      align-items: center; justify-content: center;
       background: #18181c; border: 2px solid #cbbe93; color: #cbbe93;
-      font-weight: 700; font-size: 1rem;
+      font-weight: 700; font-size: 0.8rem;
     }
     .turn-timer-badge.urgent { border-color: #ef4444; color: #ef4444; }
     .drop-badge.warn { background: #7f1d1d; color: #fca5a5; }
@@ -53,12 +53,12 @@
     .key { background: #27272a; color: #e2e8f0; padding: 1px 5px; border-radius: 4px; font-weight: 600; font-family: monospace; border: 1px solid #3f3f46; }
 
     .hand-container-vertical { display: flex; flex-direction: column; gap: 10px; align-items: center; }
-    .card { width: 66px; height: 66px; background: #18181c; border: 2px solid #27272a; border-radius: 8px; display: flex; justify-content: center; align-items: center; transition: all 0.2s ease; overflow: hidden;}
+    .card { width: 56px; height: 56px; background: #18181c; border: 2px solid #27272a; border-radius: 8px; display: flex; justify-content: center; align-items: center; transition: all 0.2s ease; overflow: hidden;}
     .card canvas { object-fit: contain; }
-    .card.selected-p1 { border-color: #3b82f6; background: #1e293b; transform: scale(1.08); box-shadow: 0 0 12px rgba(59, 130, 246, 0.3); }
-    .card.selected-p2 { border-color: #f97316; background: #2a1b12; transform: scale(1.08); box-shadow: 0 0 12px rgba(249, 115, 22, 0.3); }
+    .card.selected-p1 { border-color: #3b82f6; background: #1e293b; transform: scale(1.06); box-shadow: 0 0 10px rgba(59, 130, 246, 0.3); }
+    .card.selected-p2 { border-color: #f97316; background: #2a1b12; transform: scale(1.06); box-shadow: 0 0 10px rgba(249, 115, 22, 0.3); }
 
-    .game-container { position: relative; background: #141417; border-radius: 12px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.8), 0 8px 32px rgba(0,0,0,0.6); border: 1px solid #27272a; overflow: hidden; }
+    .game-container { position: relative; background: #141417; border-radius: 10px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.8), 0 8px 32px rgba(0,0,0,0.6); border: 1px solid #27272a; overflow: hidden; }
     canvas { display: block; }
 
     .top-right-timer { position: absolute; top: 12px; right: 12px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; display: none; align-items: center; gap: 4px; z-index: 5; }
@@ -115,90 +115,79 @@
     .btn-copy:hover { background: #52525b; color: #fff; }
 
     /* ========================================================
-       手機版：4個扁平長方按鈕 (置於手牌上方、遊玩區下方，絕不壓底座)
+       手機版：混合控制面板 (左4鈕、右2鈕，往上微調5%不壓底座)
     ======================================================== */
-    #mobile-controls {
-      display: none; width: 100%; max-width: 440px; 
-      display: none; grid-template-columns: repeat(4, 1fr); gap: 6px; 
-      margin: 6px 0; z-index: 50; touch-action: none;
+    #mobile-controls-left {
+      display: none; position: absolute; bottom: 8%; left: 8px; width: 44%;
+      grid-template-columns: repeat(2, 1fr); gap: 4px; z-index: 50; touch-action: none;
+    }
+    #mobile-controls-right {
+      display: none; position: absolute; bottom: 8%; right: 8px; width: 22%;
+      grid-template-columns: 1fr; gap: 4px; z-index: 50; touch-action: none;
     }
     
     .mc-btn {
       background: rgba(63, 63, 70, 0.9); border: 1px solid #71717a; border-radius: 8px;
-      color: white; font-size: 1.1rem; font-weight: bold; height: 44px;
+      color: white; font-size: 1.1rem; font-weight: bold; height: 42px;
       display: flex; align-items: center; justify-content: center;
       user-select: none; touch-action: manipulation; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
     .mc-btn:active { background: #52525b; transform: scale(0.96); }
-    .mc-btn.mc-action { background: rgba(59, 130, 246, 0.9); border-color: #2563eb; }
+    .mc-btn.mc-action { background: rgba(59, 130, 246, 0.9); border-color: #2563eb; height: 88px; } /* 右側確定鈕做成雙倍高 */
     .mc-btn.mc-action:active { background: #2563eb; }
 
-    /* 左上角縮小全螢幕按鈕 */
+    /* 左上角微型全螢幕按鈕 */
     #floating-tools {
-      display: none; position: fixed; left: 8px; top: 8px; z-index: 60;
+      display: none; position: fixed; left: 6px; top: 6px; z-index: 60;
     }
     .float-btn {
-      width: 32px; height: 32px; border-radius: 50%; background: rgba(24, 24, 28, 0.7);
-      border: 1px solid #3f3f46; color: white; font-size: 0.9rem; display: flex; align-items: center; justify-content: center;
-      cursor: pointer; user-select: none; touch-action: manipulation; backdrop-filter: blur(4px); box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+      width: 28px; height: 28px; border-radius: 50%; background: rgba(24, 24, 28, 0.7);
+      border: 1px solid #3f3f46; color: white; font-size: 0.75rem; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; user-select: none; touch-action: manipulation; backdrop-filter: blur(4px); box-shadow: 0 1px 4px rgba(0,0,0,0.5);
     }
     .float-btn:active { background: #3f3f46; }
 
     /* ========================================================
-       響應式設計：小於 800px 時套用全新的手機直式上下排序
+       響應式設計：小於 800px 時的手機直式排列
     ======================================================== */
     @media (max-width: 800px) {
-      #mobile-controls { display: grid; }
+      #mobile-controls-left, #mobile-controls-right { display: grid; }
       #floating-tools { display: flex; }
 
-      body { padding: 4px; height: 100vh; background-color: #000; overflow: hidden; }
+      body { padding: 2px; height: 100vh; background-color: #000; overflow: hidden; }
       .layout-wrapper { 
         flex-direction: column; 
         align-items: center; 
         gap: 4px; 
         height: 100vh; 
         width: 100vw;
-        padding: 0 6px;
+        padding: 0 4px;
       }
       
       .side-panel { width: 100%; flex-direction: column; gap: 4px; }
       
-      /* 依需求重新排序：
-         1. 遊戲畫布在最上方
-         2. 4個控制按鈕
-         3. 5選3手牌區
-         4. P1 (You) 橫條
-         5. P2 橫條在最下方
-      */
-      .center-panel { order: 1; width: 100%; display: flex; justify-content: center; align-items: center; padding: 0;}
-      .side-panel.left { order: 4; } /* P1 資訊列放下面 */
-      .side-panel.right { order: 2; } /* 手牌與 P2 相關合輯拆開：我們用內部子項目調整 */
-
-      /* 為了精準控制順序，我們把右側面板的內容拆開對齊 */
-      .side-panel.right { display: flex; flex-direction: column; width: 100%; }
-      
-      /* 把手牌區提升到按鈕下方、P1上方 */
-      .hand-container-vertical { 
-        order: -1; /* 讓手牌優先排在最前面（即按鈕下方） */
-        flex-direction: row; justify-content: center; width: 100%; gap: 6px; margin: 2px 0;
+      /* 頂部雙玩家並列容器 */
+      #top-players-container {
+        display: flex; flex-direction: row; gap: 6px; width: 100%; max-width: 400px; order: 1;
       }
-      .card { width: 40px; height: 40px; }
+      #top-players-container .player-card { flex: 1; }
+
+      /* 手牌區在玩家下方 */
+      .hand-container-vertical { 
+        order: 2; flex-direction: row; justify-content: center; width: 100%; gap: 6px; margin: 2px 0;
+      }
+      .card { width: 44px; height: 44px; }
       .card canvas { width: 100%; height: 100%; }
 
-      /* P2 橫條強制放在最下方，P1 在 P2 上方 */
-      #p1Card-wrap { order: 3; }
-      #p2Card-wrap { order: 4; }
+      /* 遊戲畫布在手牌下方、控制按鈕疊加其上 */
+      .center-panel { order: 3; width: 100%; display: flex; justify-content: center; align-items: center; padding: 0;}
+
+      /* 隱藏不需要的面板 */
+      .side-panel.left, .side-panel.right { display: none !important; }
 
       /* 遊戲畫面適配 */
-      .game-container { height: auto; max-height: 48vh; width: 100%; max-width: 400px; aspect-ratio: 440/600; display: flex; justify-content: center; align-items: center; margin: 0 auto;}
+      .game-container { height: auto; max-height: 54vh; width: 100%; max-width: 400px; aspect-ratio: 440/600; display: flex; justify-content: center; align-items: center; margin: 0 auto;}
       canvas { width: auto; height: 100%; max-width: 100%; object-fit: contain; }
-
-      /* 壓縮名牌尺寸讓整體不超出螢幕 */
-      .player-card { flex-direction: row; justify-content: space-between; align-items: center; padding: 6px 10px;}
-      .player-title { font-size: 0.8rem; margin-bottom: 0; }
-      .turn-timer-badge { width: 28px; height: 28px; font-size: 0.8rem;}
-      
-      .info-box, .status-card { display: none !important; }
     }
   </style>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -262,74 +251,69 @@
   </div>
 
   <div class="layout-wrapper">
-    <!-- 1. 遊戲畫布區 (手機版在最上方) -->
+    <!-- 手機版頂部：P1與P2左右均分對峙 -->
+    <div id="top-players-container">
+      <div id="p1Card" class="player-card active-p1">
+        <div class="player-title" id="p1Title">Player 1</div>
+        <div class="drop-status">Drops: <span id="p1ScoreBadge" class="drop-badge">0 / 11</span></div>
+      </div>
+      <div id="p2Card" class="player-card">
+        <div class="player-title" id="p2Title">Player 2</div>
+        <div class="drop-status">Drops: <span id="p2ScoreBadge" class="drop-badge">0 / 11</span></div>
+      </div>
+    </div>
+
+    <!-- 手機版次要：5選3手牌區 -->
+    <div class="hand-container-vertical">
+      <div class="card" id="card0"><canvas width="60" height="60"></canvas></div>
+      <div class="card" id="card1"><canvas width="60" height="60"></canvas></div>
+      <div class="card" id="card2"><canvas width="60" height="60"></canvas></div>
+      <div class="card" id="card3"><canvas width="60" height="60"></canvas></div>
+      <div class="card" id="card4"><canvas width="60" height="60"></canvas></div>
+    </div>
+
+    <!-- 遊戲畫布與混合控制按鈕區 -->
     <div class="center-panel">
       <div class="game-container">
         <div id="topRightTimer" class="top-right-timer"><span>Safe In:</span> <span id="timerVal">3</span>s</div>
-        <canvas id="gameCanvas" width="440" height="600"></canvas>
+        <canvas id="gameCanvas" width="336" height="600"></canvas>
+        
+        <!-- 左側 4 個按鈕：左、右、旋轉、上 -->
+        <div id="mobile-controls-left">
+          <div id="mc-rotate-top" class="mc-btn">↻</div>
+          <div id="mc-up" class="mc-btn">↑</div>
+          <div id="mc-left" class="mc-btn">←</div>
+          <div id="mc-right" class="mc-btn">→</div>
+        </div>
+
+        <!-- 右側 2 個按鈕：上方旋轉、下方確定 -->
+        <div id="mobile-controls-right">
+          <div id="mc-rotate" class="mc-btn">↻</div>
+          <div id="mc-drop" class="mc-btn mc-action">✓</div>
+        </div>
+
         <div id="modalOverlay" class="modal-overlay">
           <div id="modalTitle" class="modal-title">P1 Wins!</div>
           <div id="modalDesc" class="modal-desc">P2 dropped too many blocks.</div>
           <button class="btn-restart" id="btnRestart" onclick="resetGame()">Play Again</button>
         </div>
       </div>
-
-      <!-- 2. 四個扁平長方控制按鈕 (位於遊玩區下方、手牌上方) -->
-      <div id="mobile-controls">
-        <div id="mc-left" class="mc-btn">←</div>
-        <div id="mc-right" class="mc-btn">→</div>
-        <div id="mc-rotate" class="mc-btn">↻</div>
-        <div id="mc-drop" class="mc-btn mc-action">✓</div>
-      </div>
     </div>
 
-    <!-- 右側面板：包含手牌與兩位玩家資訊 (手機版會自動重新拆解排序) -->
-    <div class="side-panel right">
-      <!-- 3. 五選三手牌區 -->
-      <div class="hand-container-vertical">
-        <div class="card" id="card0"><canvas width="60" height="60"></canvas></div>
-        <div class="card" id="card1"><canvas width="60" height="60"></canvas></div>
-        <div class="card" id="card2"><canvas width="60" height="60"></canvas></div>
-        <div class="card" id="card3"><canvas width="60" height="60"></canvas></div>
-        <div class="card" id="card4"><canvas width="60" height="60"></canvas></div>
-      </div>
-
-      <!-- 4. Player 1 (You) 橫條 -->
-      <div id="p1Card-wrap">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <div id="p1TurnTimer" class="turn-timer-badge" style="visibility:hidden;">7</div>
-          <div id="p1Card" class="player-card active-p1" style="flex:1;">
-            <div class="player-title" id="p1Title">Player 1</div>
-            <div class="drop-status">Drops: <span id="p1ScoreBadge" class="drop-badge">0 / 11</span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 5. Player 2 橫條 (最下方) -->
-      <div id="p2Card-wrap">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <div id="p2Card" class="player-card" style="flex:1;">
-            <div class="player-title" id="p2Title">Player 2</div>
-            <div class="drop-status">Drops: <span id="p2ScoreBadge" class="drop-badge">0 / 11</span></div>
-          </div>
-          <div id="p2TurnTimer" class="turn-timer-badge" style="visibility:hidden;">7</div>
-        </div>
-      </div>
-
-      <!-- 電腦版的說明面板 (手機自動隱藏) -->
-      <div class="side-panel left" style="width:100%;">
-        <div id="statusCard" class="status-card">Choosing a block...</div>
-        <div class="info-box">
-          <h4>How to Play</h4>
-          <div><span class="key">←</span> <span class="key">→</span> <span class="key">↑</span> <span class="key">↓</span> Move</div>
-          <div style="margin-top: 4px;"><span class="key">R</span> Rotate</div>
-          <div style="margin-top: 4px;"><span class="key">E</span> Select / Drop</div>
-        </div>
+    <!-- 電腦版側邊面板 (手機自動隱藏) -->
+    <div class="side-panel left" style="display:none;">
+      <div id="p1TurnTimer" class="turn-timer-badge">7</div>
+      <div id="statusCard" class="status-card">Choosing a block...</div>
+      <div class="info-box">
+        <h4>How to Play</h4>
+        <div><span class="key">←</span> <span class="key">→</span> <span class="key">↑</span> <span class="key">↓</span> Move</div>
+        <div style="margin-top: 4px;"><span class="key">R</span> Rotate</div>
+        <div style="margin-top: 4px;"><span class="key">E</span> Select / Drop</div>
       </div>
     </div>
   </div>
 
-  <!-- 左上角縮小全螢幕按鈕 -->
+  <!-- 左上角微型全螢幕按鈕 -->
   <div id="floating-tools">
     <div class="float-btn" onclick="toggleFullScreen()" title="全螢幕">🔲</div>
   </div>
@@ -346,7 +330,7 @@ const WORKER_SOURCE = `
     postMessage({ type: 'ERROR', message: 'Matter object not found' });
   }
 
-  const TILE_SIZE = 24, CANVAS_WIDTH = 440, CANVAS_HEIGHT = 600, INITIAL_BASE_Y = CANVAS_HEIGHT - (2 * TILE_SIZE);
+  const TILE_SIZE = 24, CANVAS_WIDTH = 336, CANVAS_HEIGHT = 600, INITIAL_BASE_Y = CANVAS_HEIGHT - (2 * TILE_SIZE);
 
   const SHAPES_DATABASE = [
     { name: 'I', color: '#8ca1ab', matrix: [[1,1,1,1]] }, { name: 'O', color: '#af9a92', matrix: [[1,1],[1,1]] },
@@ -394,7 +378,7 @@ const WORKER_SOURCE = `
     }
   });
 
-  const BASE_LEFT_X = CANVAS_WIDTH / 2 - (14 * TILE_SIZE) / 2;
+  const BASE_LEFT_X = CANVAS_WIDTH / 2 - (10 * TILE_SIZE) / 2;
   function isStraightLineMatrix(matrix) { const r = matrix.length; const c = matrix[0].length; if (r !== 1 && c !== 1) return false; for (let i = 0; i < r; i++) for (let j = 0; j < c; j++) if (matrix[i][j] !== 1) return false; return true; }
   function snapToGrid(px, cols) { const hw = (cols * TILE_SIZE) / 2; const le = px - hw; const sle = BASE_LEFT_X + Math.round((le - BASE_LEFT_X) / TILE_SIZE) * TILE_SIZE; return sle + hw; }
   function cloneShape(template) { return { ...template, matrix: JSON.parse(JSON.stringify(template.matrix)) }; }
@@ -510,7 +494,7 @@ const WORKER_SOURCE = `
   }
 
   function createFragmentedBase() {
-    const totalWidth = 14 * TILE_SIZE;
+    const totalWidth = 10 * TILE_SIZE;
     const startX = CANVAS_WIDTH / 2 - totalWidth / 2 + TILE_SIZE / 2;
     const endX = CANVAS_WIDTH / 2 + totalWidth / 2 - TILE_SIZE / 2;
     const topY = INITIAL_BASE_Y - TILE_SIZE / 2;
@@ -522,8 +506,8 @@ const WORKER_SOURCE = `
     const rightWall = Bodies.rectangle(endX, topY, TILE_SIZE, TILE_SIZE, {});
     rightWall.tileCount = 1; rightWall.vertical = true;
     
-    const floor = Bodies.rectangle(CANVAS_WIDTH / 2, bottomY, 14 * TILE_SIZE, TILE_SIZE, {});
-    floor.tileCount = 14; floor.vertical = false; floor.__row = 1; floor.__col = 0;
+    const floor = Bodies.rectangle(CANVAS_WIDTH / 2, bottomY, 10 * TILE_SIZE, TILE_SIZE, {});
+    floor.tileCount = 10; floor.vertical = false; floor.__row = 1; floor.__col = 0;
 
     const baseBody = Body.create({
       parts: [leftWall, rightWall, floor],
@@ -1032,8 +1016,8 @@ function applySyncedState(state) {
   drawFrame();
 }
 
-const TILE_SIZE = 24; const CANVAS_WIDTH = 440; const CANVAS_HEIGHT = 600;
-const BASE_LEFT_X = CANVAS_WIDTH / 2 - (14 * TILE_SIZE) / 2;
+const TILE_SIZE = 24; const CANVAS_WIDTH = 336; const CANVAS_HEIGHT = 600;
+const BASE_LEFT_X = CANVAS_WIDTH / 2 - (10 * TILE_SIZE) / 2;
 const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
 
 let gameState = 'SELECT_CARD', currentPlayer = 1, playerDrops = { 1: 0, 2: 0 }, lastDropWarningMsg = '';
@@ -1104,23 +1088,6 @@ function updateUI() {
   } else {
     hideTopRightTimer();
   }
-
-  const p1Timer = document.getElementById('p1TurnTimer');
-  const p2Timer = document.getElementById('p2TurnTimer');
-  if (gameMode === 'pvp-score' && (gameState === 'SELECT_CARD' || gameState === 'POSITIONING')) {
-    const remainMs = Math.max(0, 7000 - (Date.now() - turnStartTime));
-    const remainSec = Math.ceil(remainMs / 1000);
-    const urgent = remainSec <= 3;
-    const activeTimer = currentPlayer === 1 ? p1Timer : p2Timer;
-    const idleTimer = currentPlayer === 1 ? p2Timer : p1Timer;
-    activeTimer.style.visibility = 'visible';
-    activeTimer.innerText = remainSec;
-    activeTimer.className = 'turn-timer-badge' + (urgent ? ' urgent' : '');
-    idleTimer.style.visibility = 'hidden';
-  } else {
-    p1Timer.style.visibility = 'hidden';
-    p2Timer.style.visibility = 'hidden';
-  }
 }
 
 function renderHandCards() {
@@ -1181,7 +1148,6 @@ function handleLocalPredictionInput(key) {
   drawFrame();
 }
 
-// 統整遊戲操作邏輯，支援鍵盤與觸控按鈕
 function triggerGameInput(keyStr) {
   if (isSoloTestMode) {
     if (physicsWorker) physicsWorker.postMessage({ type: 'KEY', key: keyStr });
@@ -1213,7 +1179,6 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// 綁定虛擬觸控按鈕 (防縮放防長按)
 function bindVirtualButton(id, keyStr) {
   const btn = document.getElementById(id);
   if (!btn) return;
@@ -1226,10 +1191,11 @@ function bindVirtualButton(id, keyStr) {
 
 bindVirtualButton('mc-left', 'ARROWLEFT');
 bindVirtualButton('mc-right', 'ARROWRIGHT');
+bindVirtualButton('mc-up', 'ARROWUP');
+bindVirtualButton('mc-rotate-top', 'R');
 bindVirtualButton('mc-rotate', 'R');
 bindVirtualButton('mc-drop', 'E');
 
-// 全螢幕切換邏輯
 function toggleFullScreen() {
   if (!document.fullscreenElement) {
     document.documentElement.requestFullscreen().catch(err => {
