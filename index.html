@@ -192,11 +192,11 @@
       }
       body[data-layout="portrait"] canvas { width: auto; height: 100%; max-width: 100%; object-fit: contain; }
 
-      /* 操作按鈕區：浮動疊加在遊玩區之上，預設貼近底部，可上下拖曳（不推擠其他 UI） */
+      /* 操作按鈕區：浮動疊加在遊玩區之上，預設「貼著接在 P1/P2 資訊上方」，可上下拖曳（不推擠其他 UI） */
       body[data-layout="portrait"] #mobile-controls-row {
-        position: absolute; left: 0; right: 0; bottom: 8%;
+        position: absolute; left: 0; right: 0; bottom: 0;
         flex-direction: row; justify-content: space-between;
-        align-items: flex-end; gap: 10px; padding: 0 8px; box-sizing: border-box;
+        align-items: flex-end; gap: 10px; padding: 0 8px 4px; box-sizing: border-box;
       }
       body[data-layout="portrait"] #mobile-controls-left,
       body[data-layout="portrait"] #mobile-controls-right {
@@ -204,11 +204,12 @@
       }
 
       /* 五選三手牌區：浮動疊加在遊玩區的紅線下方一點點位置（不緊貼紅線），由 JS 精確定位；
-         選定方塊後（gameState 不是 SELECT_CARD）自動隱藏，輪到選牌時（SELECT_CARD）自動出現 */
+         選定方塊後（gameState 不是 SELECT_CARD）自動隱藏，輪到選牌時（SELECT_CARD）自動出現。
+         z-index 高於操作按鈕區，若按鈕被拖到很高蓋到手牌位置，手牌仍顯示在按鈕上方。 */
       body[data-layout="portrait"] .hand-container-vertical {
         position: absolute; left: 0; right: 0; top: 70px;
         flex-direction: row; justify-content: center; width: 100%; gap: 6px;
-        margin: 0; z-index: 15; transition: opacity 0.15s ease;
+        margin: 0; z-index: 60; transition: opacity 0.15s ease;
       }
       body[data-layout="portrait"] .hand-container-vertical.hand-hidden { display: none; }
       body[data-layout="portrait"] .card { width: 40px; height: 40px; }
@@ -1349,9 +1350,9 @@ function applyControlsOffset(px) {
 }
 
 // 計算目前版面下，按鈕最多可以往上/往下移動到哪裡：
-// 上緣不可超出螢幕頂端；下緣不可蓋住手牌區/玩家資訊（直式）或頂部橫帶（橫式）。
-// 遊玩區本身則不設限，允許被按鈕蓋住。
-function computeControlsDragBounds() {
+// 上緣不可超出螢幕頂端；下緣直式時不可超過「起始位置」(貼著 P1/P2 資訊上方)，橫式時不可超出螢幕底部。
+// 遊玩區、五選三手牌本身則不設限，允許被按鈕蓋住（手牌 z-index 較高，仍會顯示在按鈕上方）。
+function computeControlsDragBounds(naturalTop, naturalBottom) {
   const layout = document.body.getAttribute('data-layout') || 'portrait';
   if (layout === 'landscape') {
     const topBar = document.getElementById('top-players-container');
@@ -1360,8 +1361,7 @@ function computeControlsDragBounds() {
     return { topLimit, bottomLimit };
   }
   const topLimit = 4;
-  const handRow = document.querySelector('.hand-container-vertical');
-  const bottomLimit = handRow ? handRow.getBoundingClientRect().top - 4 : window.innerHeight - 4;
+  const bottomLimit = naturalBottom; // 起始位置已貼著 P1/P2 資訊上方，不可再往下
   return { topLimit, bottomLimit };
 }
 
@@ -1389,7 +1389,7 @@ function onOrientationPointerDown(e) {
       naturalTop = rect.top; naturalBottom = rect.bottom;
       left.style.transform = prevTransform;
     }
-    const bounds = computeControlsDragBounds();
+    const bounds = computeControlsDragBounds(naturalTop, naturalBottom);
     controlsDragMin = bounds.topLimit - naturalTop;
     controlsDragMax = bounds.bottomLimit - naturalBottom;
     if (controlsDragMax < controlsDragMin) controlsDragMax = controlsDragMin;
