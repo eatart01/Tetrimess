@@ -184,10 +184,12 @@
         flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0;
       }
 
-      /* 遊玩區：全尺寸，不因按鈕而縮小；靠上對齊，確保最上緣一定頂到最上方 */
+      /* 遊玩區：全尺寸，不因按鈕而縮小；靠上對齊，確保最上緣一定頂到最上方
+         注意：.center-panel 的 flex-direction 是 column（繼承自基本樣式），
+         所以「垂直方向」由 justify-content 控制、「水平方向」由 align-items 控制。 */
       body[data-layout="portrait"] .center-panel {
         order: 1; flex: 1 1 auto; min-height: 0; width: 100%;
-        display: flex; justify-content: center; align-items: flex-start; padding: 0; position: relative;
+        display: flex; justify-content: flex-start; align-items: center; padding: 0; position: relative;
       }
       body[data-layout="portrait"] .game-container {
         margin: 0 auto;
@@ -1577,6 +1579,20 @@ function refreshLayout() {
 }
 
 refreshLayout();
+// 用 ResizeObserver 監看遊玩區實際的渲染尺寸，一旦真正確定下來就重新定位五選三手牌區。
+// 比單純依賴 requestAnimationFrame 更可靠：手機實際旋轉時，瀏覽器網址列/工具列的收合動畫
+// 常常會橫跨好幾個 frame 才穩定，單一 rAF 有時會讀到「還沒定型」的尺寸，導致手牌位置忽高忽低。
+if (window.ResizeObserver) {
+  const gameContainerEl = document.querySelector('.game-container');
+  if (gameContainerEl) {
+    let resizeObserverFrame = null;
+    const gameContainerObserver = new ResizeObserver(() => {
+      if (resizeObserverFrame) cancelAnimationFrame(resizeObserverFrame);
+      resizeObserverFrame = requestAnimationFrame(() => { positionHandRow(); });
+    });
+    gameContainerObserver.observe(gameContainerEl);
+  }
+}
 window.addEventListener('resize', refreshLayout);
 window.addEventListener('orientationchange', refreshLayout);
 
