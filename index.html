@@ -146,6 +146,8 @@
     /* 確定鍵不再使用藍底，統一與其他按鈕同款 */
     #mc-orientation { touch-action: none; } /* 長按拖曳時避免觸發瀏覽器捲動/縮放手勢 */
     #mc-orientation.dragging { background: rgba(59, 130, 246, 0.9); border-color: #2563eb; }
+    #mc-fullscreen { touch-action: none; } /* 長按拖曳整頁時避免觸發瀏覽器捲動/縮放手勢 */
+    #mc-fullscreen.dragging { background: rgba(217, 119, 6, 0.9); border-color: #b45309; }
 
     /* 右下角微型工具按鈕群（桌面/備用，手機模式下會被隱藏，功能已併入主控制區） */
     #floating-tools {
@@ -385,7 +387,7 @@
         <div id="mobile-controls-right">
           <div id="mc-orientation" class="mc-btn">⤢</div>
           <div id="mc-rotate" class="mc-btn">↻</div>
-          <div id="mc-fullscreen" class="mc-btn" onclick="toggleFullScreen()">🔲</div>
+          <div id="mc-fullscreen" class="mc-btn">🔲</div>
           <div id="mc-drop" class="mc-btn">✓</div>
         </div>
       </div>
@@ -1324,6 +1326,7 @@ function toggleOrientationLayout() {
     fitGameContainer();
     applyControlsOffset(loadControlsOffset());
     positionHandRow();
+    refreshPageOffset();
   });
 }
 
@@ -1431,6 +1434,90 @@ function onOrientationPointerUp(e) {
   btn.addEventListener('contextmenu', e => e.preventDefault());
 })();
 
+// ============ 遊玩區＋選方塊區 上下拖曳調整（僅限手機直式，長按「全螢幕」鈕）============
+// 短按：跟以前一樣，正常切換全螢幕。
+// 長按 350ms 後上下拖動：只有「遊玩區（畫布）」和「五選三選方塊區」兩者一起垂直移動，
+// 操作按鈕區、P1/P2 資訊完全不受影響、不會跟著動。
+// 放開後記住位置（存在 localStorage，下次打開自動套用）。用來補償不同手機「遊玩區沒有真的頂到最上方」的顯示差異。
+// 只在直式模式生效；橫式時此按鈕維持單純的全螢幕開關，不會觸發拖曳。
+const PAGE_OFFSET_KEY = 'tetrimess-page-offset-portrait';
+function loadPageOffset() {
+  try { const v = localStorage.getItem(PAGE_OFFSET_KEY); return v ? parseFloat(v) : 0; } catch (e) { return 0; }
+}
+function savePageOffset(px) {
+  try { localStorage.setItem(PAGE_OFFSET_KEY, String(px)); } catch (e) {}
+}
+function applyPageOffset(px) {
+  const box = document.querySelector('.game-container');
+  const hand = document.querySelector('.hand-container-vertical');
+  const t = px ? `translateY(${px}px)` : '';
+  if (box) box.style.transform = t;
+  if (hand) hand.style.transform = t;
+}
+function refreshPageOffset() {
+  if (document.body.getAttribute('data-layout') === 'portrait') {
+    applyPageOffset(loadPageOffset());
+  } else {
+    applyPageOffset(0); // 橫式不套用這個位移，只有直式支援這個調整
+  }
+}
+
+let pagePressTimer = null;
+let pageDragActive = false;
+let pageDragStartY = 0;
+let pageDragBaseOffset = 0;
+let pageDragMin = 0;
+let pageDragMax = 0;
+
+function onFullscreenPointerDown(e) {
+  pageDragActive = false;
+  pageDragStartY = e.clientY;
+  pageDragBaseOffset = loadPageOffset();
+  clearTimeout(pagePressTimer);
+  if (document.body.getAttribute('data-layout') !== 'portrait') return; // 僅直式支援拖曳，橫式僅短按有效
+  pagePressTimer = setTimeout(() => {
+    pageDragActive = true;
+    const vh = window.innerHeight;
+    pageDragMin = -Math.round(vh * 0.6);
+    pageDragMax = Math.round(vh * 0.3);
+    const btn = document.getElementById('mc-fullscreen');
+    if (btn) btn.classList.add('dragging');
+    if (navigator.vibrate) { try { navigator.vibrate(15); } catch (err) {} }
+  }, CONTROLS_LONG_PRESS_MS);
+  const btn = document.getElementById('mc-fullscreen');
+  if (btn && btn.setPointerCapture) { try { btn.setPointerCapture(e.pointerId); } catch (err) {} }
+}
+function onFullscreenPointerMove(e) {
+  if (!pageDragActive) return;
+  e.preventDefault();
+  const delta = e.clientY - pageDragStartY;
+  const next = Math.max(pageDragMin, Math.min(pageDragMax, pageDragBaseOffset + delta));
+  applyPageOffset(next);
+}
+function onFullscreenPointerUp(e) {
+  clearTimeout(pagePressTimer);
+  const btn = document.getElementById('mc-fullscreen');
+  if (pageDragActive) {
+    const delta = e.clientY - pageDragStartY;
+    const finalOffset = Math.max(pageDragMin, Math.min(pageDragMax, pageDragBaseOffset + delta));
+    applyPageOffset(finalOffset);
+    savePageOffset(finalOffset);
+    if (btn) btn.classList.remove('dragging');
+  } else {
+    toggleFullScreen();
+  }
+  pageDragActive = false;
+}
+(function bindFullscreenDrag() {
+  const btn = document.getElementById('mc-fullscreen');
+  if (!btn) return;
+  btn.addEventListener('pointerdown', onFullscreenPointerDown);
+  btn.addEventListener('pointermove', onFullscreenPointerMove);
+  btn.addEventListener('pointerup', onFullscreenPointerUp);
+  btn.addEventListener('pointercancel', onFullscreenPointerUp);
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+})();
+
 // 讓遊玩區永遠依照 336:600 的正確比例縮放，不再頂滿螢幕左右或上下
 const GAME_RATIO = 336 / 600;
 function fitGameContainer() {
@@ -1485,6 +1572,7 @@ function refreshLayout() {
     fitGameContainer();
     applyControlsOffset(loadControlsOffset());
     positionHandRow();
+    refreshPageOffset();
   });
 }
 
