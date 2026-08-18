@@ -118,6 +118,8 @@
        手機版：混合控制面板 (左4鈕、右4鈕，統一單一高度)
        左側 2x2：左上=旋轉 右上=確定 左下=← 右下=→
        右側 2x2：左上=直橫式切換 右上=旋轉 左下=全螢幕 右下=確定
+       操作按鈕以浮動疊加方式蓋在遊玩區上，不會推擠其他 UI。
+       長按「直橫式切換」鈕可進入拖曳模式，上下移動整組按鈕、放開後自動記憶位置（直式/橫式分開記憶）。
     ======================================================== */
     #mobile-controls-row {
       display: none; z-index: 50;
@@ -142,6 +144,8 @@
     }
     .mc-btn:active { background: #52525b; transform: scale(0.96); }
     /* 確定鍵不再使用藍底，統一與其他按鈕同款 */
+    #mc-orientation { touch-action: none; } /* 長按拖曳時避免觸發瀏覽器捲動/縮放手勢 */
+    #mc-orientation.dragging { background: rgba(59, 130, 246, 0.9); border-color: #2563eb; }
 
     /* 右下角微型工具按鈕群（桌面/備用，手機模式下會被隱藏，功能已併入主控制區） */
     #floating-tools {
@@ -171,37 +175,42 @@
     }
 
     /* ================= 直式 (Portrait) ================= */
-    /* 由上到下：遊玩區(頂到最上方) -> 操作按鈕(8顆) -> 五選三手牌 -> P1/P2 資訊(最下方) */
+    /* 由上到下：遊玩區(頂到最上方，全尺寸不縮小) -> 五選三手牌 -> P1/P2 資訊(最下方)      */
+    /* 操作按鈕(8顆) 以浮動疊加方式蓋在遊玩區上，預設貼近底部，可長按直橫式切換鈕上下拖曳調整 */
     @media (max-width: 900px), (max-height: 700px) {
       body[data-layout="portrait"] .layout-wrapper {
         flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0;
       }
 
-      /* 遊玩區 + 操作按鈕：整組置頂 */
+      /* 遊玩區：全尺寸，不因按鈕而縮小；靠上對齊，確保最上緣一定頂到最上方 */
       body[data-layout="portrait"] .center-panel {
         order: 1; flex: 1 1 auto; min-height: 0; width: 100%;
-        display: flex; flex-direction: column; justify-content: flex-start; align-items: center; padding: 0; position: relative;
+        display: flex; justify-content: center; align-items: flex-start; padding: 0; position: relative;
       }
       body[data-layout="portrait"] .game-container {
-        margin: 0 auto; flex: 0 0 auto;
+        margin: 0 auto;
       }
       body[data-layout="portrait"] canvas { width: auto; height: 100%; max-width: 100%; object-fit: contain; }
 
-      /* 操作按鈕區：緊接在遊玩區下方，左右各 4 顆，共 8 顆 */
+      /* 操作按鈕區：浮動疊加在遊玩區之上，預設貼近底部，可上下拖曳（不推擠其他 UI） */
       body[data-layout="portrait"] #mobile-controls-row {
-        flex: 0 0 auto; width: 100%; flex-direction: row; justify-content: space-between;
-        align-items: flex-start; gap: 10px; padding: 6px 10px 4px; box-sizing: border-box;
+        position: absolute; left: 0; right: 0; bottom: 8%;
+        flex-direction: row; justify-content: space-between;
+        align-items: flex-end; gap: 10px; padding: 0 8px; box-sizing: border-box;
       }
       body[data-layout="portrait"] #mobile-controls-left,
       body[data-layout="portrait"] #mobile-controls-right {
         position: relative; left: auto; right: auto; bottom: auto; top: auto; width: 46%;
       }
 
-      /* 五選三手牌區，接在按鈕下方 */
+      /* 五選三手牌區：浮動疊加在遊玩區的紅線下方一點點位置（不緊貼紅線），由 JS 精確定位；
+         選定方塊後（gameState 不是 SELECT_CARD）自動隱藏，輪到選牌時（SELECT_CARD）自動出現 */
       body[data-layout="portrait"] .hand-container-vertical {
-        order: 2; flex-direction: row; justify-content: center; width: 100%; gap: 6px;
-        margin: 4px 0; flex: 0 0 auto;
+        position: absolute; left: 0; right: 0; top: 70px;
+        flex-direction: row; justify-content: center; width: 100%; gap: 6px;
+        margin: 0; z-index: 15; transition: opacity 0.15s ease;
       }
+      body[data-layout="portrait"] .hand-container-vertical.hand-hidden { display: none; }
       body[data-layout="portrait"] .card { width: 40px; height: 40px; }
 
       /* P1/P2 資訊：整個直式畫面最下方 */
@@ -318,7 +327,7 @@
     </div>
 
     <div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:24px;">
-      <input type="text" id="roomInput" class="room-input" placeholder="Room ID">
+      <input type="text" id="roomInput" class="room-input" placeholder="0-9" maxlength="1" inputmode="numeric" pattern="[0-9]">
       <button class="btn-restart" style="background:#059669;" onclick="joinRoom()">Join Room (P2)</button>
     </div>
 
@@ -373,7 +382,7 @@
 
         <!-- 右側 4 個按鈕 (2x2)：左上=直橫式切換 右上=旋轉 左下=全螢幕 右下=確定 -->
         <div id="mobile-controls-right">
-          <div id="mc-orientation" class="mc-btn" onclick="toggleOrientationLayout()">⤢</div>
+          <div id="mc-orientation" class="mc-btn">⤢</div>
           <div id="mc-rotate" class="mc-btn">↻</div>
           <div id="mc-fullscreen" class="mc-btn" onclick="toggleFullScreen()">🔲</div>
           <div id="mc-drop" class="mc-btn">✓</div>
@@ -902,19 +911,21 @@ function renderConnectPanel(mode, code) {
   `;
 }
 
+// 房間代號改為單一數字 0~9（僅供親友間口頭/文字傳達使用），內部仍加上前綴避免與陌生人在
+// PeerJS 公共伺服器上的房間 ID 撞號；使用者只需要知道並輸入這個數字。
+const ROOM_ID_PREFIX = 'tetrimess-room-';
 function createRoom(mode) {
   selectedRoomMode = mode || 'pvp-drops';
-  // 修改 1：房間 ID 改為純 4 位隨機數字 (0000~9999)
-  const roomId = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-  currentRoomId = roomId;
-  peer = new Peer(roomId);
+  const roomDigit = String(Math.floor(Math.random() * 10)); // 單一數字 0~9
+  currentRoomId = roomDigit;
+  peer = new Peer(ROOM_ID_PREFIX + roomDigit);
   myRole = 'P1';
   createPhysicsWorker();
 
-  peer.on('open', (id) => {
-    currentRoomId = id;
+  peer.on('open', () => {
+    currentRoomId = roomDigit;
     const codeEl = document.getElementById('connectCodeText');
-    if (codeEl) codeEl.innerText = id;
+    if (codeEl) codeEl.innerText = roomDigit;
   });
 
   peer.on('connection', (c) => {
@@ -978,7 +989,8 @@ function joinRoom() {
   document.activeElement.blur();
   const targetId = document.getElementById('roomInput').value.trim();
   if (targetId === '12345') { enterSoloTestMode(); return; }
-  if (!targetId) return alert('Please enter a 4-digit Room ID.');
+  if (!targetId) return alert('Please enter the 1-digit Room ID (0-9).');
+  if (!/^[0-9]$/.test(targetId)) return alert('Room ID must be a single digit (0-9).');
 
   resetConnectionState(); 
   peer = new Peer();
@@ -986,7 +998,7 @@ function joinRoom() {
   document.getElementById('lobbyStatus').innerText = 'Connecting...';
 
   peer.on('open', () => {
-    conn = peer.connect(targetId, { reliable: true });
+    conn = peer.connect(ROOM_ID_PREFIX + targetId, { reliable: true });
     setupConnection();
   });
 
@@ -1175,6 +1187,8 @@ function updateUI() {
 }
 
 function renderHandCards() {
+  const handContainer = document.querySelector('.hand-container-vertical');
+  if (handContainer) handContainer.classList.toggle('hand-hidden', gameState !== 'SELECT_CARD');
   for (let i = 0; i < 5; i++) {
     const cardEl = document.getElementById(`card${i}`); const cctx = cardEl.querySelector('canvas').getContext('2d');
     cardEl.className = `card ${(gameState === 'SELECT_CARD' && i === selectedCardIndex && i < 3) ? `selected-p${currentPlayer}` : ''}`;
@@ -1305,8 +1319,117 @@ function toggleOrientationLayout() {
   layoutManualOverride = true;
   const next = document.body.getAttribute('data-layout') === 'landscape' ? 'portrait' : 'landscape';
   document.body.setAttribute('data-layout', next);
-  requestAnimationFrame(fitGameContainer);
+  requestAnimationFrame(() => {
+    fitGameContainer();
+    applyControlsOffset(loadControlsOffset());
+    positionHandRow();
+  });
 }
+
+// ============ 操作按鈕上下拖曳調整（長按「直橫式切換」鈕進入拖曳模式）============
+// 短按：切換直式/橫式。長按 350ms 後放開手指前的上下移動：整組按鈕（左4+右4）跟著垂直移動，
+// 放開後記住位置（直式、橫式分開記憶，存在 localStorage，下次打開自動套用）。
+// 只會移動按鈕的 Y 座標，不會推擠、縮放或改變其他任何 UI（遊玩區、手牌、玩家資訊都不受影響）。
+const CONTROLS_OFFSET_PREFIX = 'tetrimess-controls-offset-';
+function controlsOffsetKey() {
+  return CONTROLS_OFFSET_PREFIX + (document.body.getAttribute('data-layout') || 'portrait');
+}
+function loadControlsOffset() {
+  try { const v = localStorage.getItem(controlsOffsetKey()); return v ? parseFloat(v) : 0; } catch (e) { return 0; }
+}
+function saveControlsOffset(px) {
+  try { localStorage.setItem(controlsOffsetKey(), String(px)); } catch (e) {}
+}
+function applyControlsOffset(px) {
+  const left = document.getElementById('mobile-controls-left');
+  const right = document.getElementById('mobile-controls-right');
+  const t = `translateY(${px}px)`;
+  if (left) left.style.transform = t;
+  if (right) right.style.transform = t;
+}
+
+// 計算目前版面下，按鈕最多可以往上/往下移動到哪裡：
+// 上緣不可超出螢幕頂端；下緣不可蓋住手牌區/玩家資訊（直式）或頂部橫帶（橫式）。
+// 遊玩區本身則不設限，允許被按鈕蓋住。
+function computeControlsDragBounds() {
+  const layout = document.body.getAttribute('data-layout') || 'portrait';
+  if (layout === 'landscape') {
+    const topBar = document.getElementById('top-players-container');
+    const topLimit = topBar ? topBar.getBoundingClientRect().bottom + 4 : 4;
+    const bottomLimit = window.innerHeight - 4;
+    return { topLimit, bottomLimit };
+  }
+  const topLimit = 4;
+  const handRow = document.querySelector('.hand-container-vertical');
+  const bottomLimit = handRow ? handRow.getBoundingClientRect().top - 4 : window.innerHeight - 4;
+  return { topLimit, bottomLimit };
+}
+
+let controlsPressTimer = null;
+let controlsDragActive = false;
+let controlsDragStartY = 0;
+let controlsDragBaseOffset = 0;
+let controlsDragMin = 0;
+let controlsDragMax = 0;
+const CONTROLS_LONG_PRESS_MS = 350;
+
+function onOrientationPointerDown(e) {
+  controlsDragActive = false;
+  controlsDragStartY = e.clientY;
+  controlsDragBaseOffset = loadControlsOffset();
+  clearTimeout(controlsPressTimer);
+  controlsPressTimer = setTimeout(() => {
+    controlsDragActive = true;
+    const left = document.getElementById('mobile-controls-left');
+    let naturalTop = 0, naturalBottom = 0;
+    if (left) {
+      const prevTransform = left.style.transform;
+      left.style.transform = 'translateY(0px)';
+      const rect = left.getBoundingClientRect();
+      naturalTop = rect.top; naturalBottom = rect.bottom;
+      left.style.transform = prevTransform;
+    }
+    const bounds = computeControlsDragBounds();
+    controlsDragMin = bounds.topLimit - naturalTop;
+    controlsDragMax = bounds.bottomLimit - naturalBottom;
+    if (controlsDragMax < controlsDragMin) controlsDragMax = controlsDragMin;
+    const btn = document.getElementById('mc-orientation');
+    if (btn) btn.classList.add('dragging');
+    if (navigator.vibrate) { try { navigator.vibrate(15); } catch (err) {} }
+  }, CONTROLS_LONG_PRESS_MS);
+  const btn = document.getElementById('mc-orientation');
+  if (btn && btn.setPointerCapture) { try { btn.setPointerCapture(e.pointerId); } catch (err) {} }
+}
+function onOrientationPointerMove(e) {
+  if (!controlsDragActive) return;
+  e.preventDefault();
+  const delta = e.clientY - controlsDragStartY;
+  const next = Math.max(controlsDragMin, Math.min(controlsDragMax, controlsDragBaseOffset + delta));
+  applyControlsOffset(next);
+}
+function onOrientationPointerUp(e) {
+  clearTimeout(controlsPressTimer);
+  const btn = document.getElementById('mc-orientation');
+  if (controlsDragActive) {
+    const delta = e.clientY - controlsDragStartY;
+    const finalOffset = Math.max(controlsDragMin, Math.min(controlsDragMax, controlsDragBaseOffset + delta));
+    applyControlsOffset(finalOffset);
+    saveControlsOffset(finalOffset);
+    if (btn) btn.classList.remove('dragging');
+  } else {
+    toggleOrientationLayout();
+  }
+  controlsDragActive = false;
+}
+(function bindOrientationDrag() {
+  const btn = document.getElementById('mc-orientation');
+  if (!btn) return;
+  btn.addEventListener('pointerdown', onOrientationPointerDown);
+  btn.addEventListener('pointermove', onOrientationPointerMove);
+  btn.addEventListener('pointerup', onOrientationPointerUp);
+  btn.addEventListener('pointercancel', onOrientationPointerUp);
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+})();
 
 // 讓遊玩區永遠依照 336:600 的正確比例縮放，不再頂滿螢幕左右或上下
 const GAME_RATIO = 336 / 600;
@@ -1324,11 +1447,8 @@ function fitGameContainer() {
   const isLandscape = document.body.getAttribute('data-layout') === 'landscape';
   const sideMargin = 16; // 保留左右可見邊距，避免遊玩區直接頂到螢幕最左最右
   const topMargin = isLandscape ? 46 : 0; // 橫式頂部疊了玩家資訊/手牌橫帶，需預留空間避免重疊
-  const controlsRow = document.getElementById('mobile-controls-row');
-  // 直式時操作按鈕區改為接在遊玩區下方的正常版面（非疊加），需預留其實際高度
-  const bottomReserve = (!isLandscape && controlsRow) ? controlsRow.offsetHeight : 0;
   const availW = panel.clientWidth - sideMargin * 2;
-  const availH = panel.clientHeight - topMargin - bottomReserve;
+  const availH = panel.clientHeight - topMargin;
   if (availW <= 0 || availH <= 0) return;
 
   let w = availH * GAME_RATIO;
@@ -1339,9 +1459,33 @@ function fitGameContainer() {
   box.style.height = h + 'px';
 }
 
+// 五選三手牌區：直式時定位在遊玩區「紅線」下方一點點的位置（不緊貼紅線）
+// 紅線在畫布高度 60/600 = 10% 處（見 drawFrame 裡的安全線）
+const RED_LINE_RATIO = 60 / 600;
+const HAND_ROW_GAP_BELOW_LINE = 14; // 紅線下方留的間距，避免緊貼
+function positionHandRow() {
+  const hand = document.querySelector('.hand-container-vertical');
+  if (!hand) return;
+  if (document.body.getAttribute('data-layout') !== 'portrait' || !isMobileLayoutActive()) {
+    hand.style.top = '';
+    return;
+  }
+  const box = document.querySelector('.game-container');
+  const wrapper = document.querySelector('.layout-wrapper');
+  if (!box || !wrapper) return;
+  const boxRect = box.getBoundingClientRect();
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const redLineY = boxRect.top + boxRect.height * RED_LINE_RATIO;
+  hand.style.top = Math.round(redLineY - wrapperRect.top + HAND_ROW_GAP_BELOW_LINE) + 'px';
+}
+
 function refreshLayout() {
   autoDetectLayout();
-  requestAnimationFrame(fitGameContainer);
+  requestAnimationFrame(() => {
+    fitGameContainer();
+    applyControlsOffset(loadControlsOffset());
+    positionHandRow();
+  });
 }
 
 refreshLayout();
