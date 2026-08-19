@@ -505,7 +505,7 @@ const WORKER_SOURCE = `
   let gameMode = 'pvp-drops';
   let sharedDropCount = 0, playerScores = { 1: 0, 2: 0 };
   const PVP_SCORE_TARGET = 35; const PVP_SCORE_LOSE_THRESHOLD = -3;
-  const MOVE_RANGE_SHRINK = 4 * TILE_SIZE; const TURN_TIME_LIMIT_MS = 7000;
+  const MOVE_RANGE_SHRINK = 4 * TILE_SIZE; const TURN_TIME_LIMIT_MS = 40000;
   let turnStartTime = 0;
   let sharedHand = [], selectedCardIndex = 0, activeShape = null, activeMatrix = null;
   let posX = CANVAS_WIDTH / 2, posY = 200, countdownTimer = null, countdownValue = 3;
@@ -1343,6 +1343,7 @@ let posX = CANVAS_WIDTH / 2, posY = 200, countdownValue = 3;
 let hasTouched = false, touchTime = 0;
 let modalTitle = '', modalDesc = ''; 
 let gameMode = 'pvp-drops', sharedDropCount = 0, playerScores = { 1: 0, 2: 0 }, turnStartTime = 0;
+const TURN_TIME_LIMIT_MS = 40000; // 跟 worker 裡的值保持一致，只有 Score 模式會用到（見 drawFrame 的倒數顯示）
 let localBodies = []; 
 
 function snapToGrid(px, cols) { const hw = (cols * TILE_SIZE) / 2; const le = px - hw; const sle = BASE_LEFT_X + Math.round((le - BASE_LEFT_X) / TILE_SIZE) * TILE_SIZE; return sle + hw; }
@@ -1400,8 +1401,12 @@ function updateUI() {
 
   if (gameState === 'DROP_WAIT' && hasTouched) {
     const elapsed = Date.now() - touchTime;
-    if (elapsed >= 1000) showTopRightTimer(Math.max(1, Math.ceil((4000 - elapsed) / 1000)));
+    if (elapsed >= 1000) showTopRightTimer(Math.max(1, Math.ceil((4000 - elapsed) / 1000)), 'Safe In');
     else hideTopRightTimer();
+  } else if (gameMode === 'pvp-score' && (gameState === 'SELECT_CARD' || gameState === 'POSITIONING') && turnStartTime) {
+    // Score 模式的放置倒數（40 秒），跟「Safe In」共用同一個右上角位置與樣式
+    const remainingSec = Math.max(0, Math.ceil((TURN_TIME_LIMIT_MS - (Date.now() - turnStartTime)) / 1000));
+    showTopRightTimer(remainingSec, 'P' + currentPlayer + ' Place');
   } else {
     hideTopRightTimer();
   }
@@ -1442,7 +1447,7 @@ function drawMatrixToCanvas(targetCtx, matrix, color, centerX, centerY, tileSize
   targetCtx.restore();
 }
 
-function showTopRightTimer(val) { document.getElementById('topRightTimer').classList.add('active'); document.getElementById('timerVal').innerText = val; }
+function showTopRightTimer(val, label) { const el = document.getElementById('topRightTimer'); el.classList.add('active'); el.innerHTML = `<span>${label || 'Safe In'}:</span> <span id="timerVal">${val}</span>s`; }
 function hideTopRightTimer() { document.getElementById('topRightTimer').classList.remove('active'); }
 
 function handleLocalPredictionInput(key) {
