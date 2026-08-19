@@ -1562,7 +1562,13 @@ function positionHandRow() {
   const box = document.querySelector('.game-container');
   const wrapper = document.querySelector('.layout-wrapper');
   if (!box || !wrapper) return;
+  // 量測「未套用拖曳位移」時的自然位置：若此時 box 已經有長按拖曳套用的 transform，
+  // 直接讀 getBoundingClientRect 會把那個位移也讀進來，之後又疊加一次 transform，造成位移被算兩次。
+  // 所以量測前先暫時拿掉 transform，量完再還原，確保這裡永遠是「未拖曳」的基準位置。
+  const prevTransform = box.style.transform;
+  if (prevTransform) box.style.transform = 'none';
   const boxRect = box.getBoundingClientRect();
+  if (prevTransform) box.style.transform = prevTransform;
   const wrapperRect = wrapper.getBoundingClientRect();
   const redLineY = boxRect.top + boxRect.height * RED_LINE_RATIO;
   hand.style.top = Math.round(redLineY - wrapperRect.top + HAND_ROW_GAP_BELOW_LINE) + 'px';
@@ -1595,6 +1601,17 @@ if (window.ResizeObserver) {
 }
 window.addEventListener('resize', refreshLayout);
 window.addEventListener('orientationchange', refreshLayout);
+// 手機瀏覽器旋轉時，網址列/工具列收合經常是「resize 事件先觸發、但實際視窗高度晚幾百毫秒才真正定型」，
+// 且部分手機瀏覽器（尤其 iOS Safari）在這個過程中不會再補發第二次 resize 事件。
+// 因此額外用 visualViewport 監聽，並在旋轉後補一次延遲重算，確保最終一定會用「真正穩定後」的尺寸校正一次。
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', refreshLayout);
+}
+window.addEventListener('orientationchange', () => {
+  setTimeout(refreshLayout, 150);
+  setTimeout(refreshLayout, 400);
+  setTimeout(refreshLayout, 700);
+});
 
 function resetGame() { if (myRole === 'P1' && physicsWorker) physicsWorker.postMessage({ type: 'INIT' }); }
 
@@ -1665,4 +1682,4 @@ renderLobbyTwoLightning('iconPvpScore', '#c6b7b2', '#cbbe93');
 </script>
 
 </body>
-</html>
+  </html>
