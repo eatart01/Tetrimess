@@ -505,7 +505,7 @@ const WORKER_SOURCE = `
   let gameMode = 'pvp-drops';
   let sharedDropCount = 0, playerScores = { 1: 0, 2: 0 };
   const PVP_SCORE_TARGET = 35; const PVP_SCORE_LOSE_THRESHOLD = -3;
-  const MOVE_RANGE_SHRINK = 4 * TILE_SIZE; const TURN_TIME_LIMIT_MS = 40000;
+  const MOVE_RANGE_SHRINK = 4 * TILE_SIZE; const TURN_TIME_LIMIT_MS = 15000;
   let turnStartTime = 0;
   let sharedHand = [], selectedCardIndex = 0, activeShape = null, activeMatrix = null;
   let posX = CANVAS_WIDTH / 2, posY = 200, countdownTimer = null, countdownValue = 3;
@@ -784,7 +784,8 @@ const WORKER_SOURCE = `
       if (!hasTouched) { if (currentDroppedBody && currentDroppedBody.position.y > CANVAS_HEIGHT + 30) finishTurn(); }
       else {
         const elapsed = Date.now() - touchTime;
-        if (elapsed < 4000) { if (isStrictlyStationary()) finishTurn(); }
+        const settleWindowMs = gameMode === 'pvp-score' ? 10000 : 4000; // Score 模式坍塌可能較久，多給一點時間再判定
+        if (elapsed < settleWindowMs) { if (isStrictlyStationary()) finishTurn(); }
         else finishTurn();
       }
     } else if (gameMode === 'pvp-score' && (gameState === 'SELECT_CARD' || gameState === 'POSITIONING')) {
@@ -1343,7 +1344,7 @@ let posX = CANVAS_WIDTH / 2, posY = 200, countdownValue = 3;
 let hasTouched = false, touchTime = 0;
 let modalTitle = '', modalDesc = ''; 
 let gameMode = 'pvp-drops', sharedDropCount = 0, playerScores = { 1: 0, 2: 0 }, turnStartTime = 0;
-const TURN_TIME_LIMIT_MS = 40000; // 跟 worker 裡的值保持一致，只有 Score 模式會用到（見 drawFrame 的倒數顯示）
+const TURN_TIME_LIMIT_MS = 15000; // 跟 worker 裡的值保持一致，只有 Score 模式會用到（見 updateUI 的倒數顯示）
 let localBodies = []; 
 
 function snapToGrid(px, cols) { const hw = (cols * TILE_SIZE) / 2; const le = px - hw; const sle = BASE_LEFT_X + Math.round((le - BASE_LEFT_X) / TILE_SIZE) * TILE_SIZE; return sle + hw; }
@@ -1386,6 +1387,8 @@ function updateUI() {
     p2Badge.className = `drop-badge ${playerDrops[2] > 0 ? 'warn' : ''}`;
   }
 
+  const SETTLE_WINDOW_MS = gameMode === 'pvp-score' ? 10000 : 4000; // 跟 worker 保持一致
+
   const statusCard = document.getElementById('statusCard');
   if (lastDropWarningMsg) statusCard.innerHTML = `<span class="warning-msg">${lastDropWarningMsg}</span>`;
   else if (gameState === 'SELECT_CARD') statusCard.innerHTML = `P${currentPlayer}'s Turn: Choose a block (<span class="key">E</span>)`;
@@ -1395,16 +1398,16 @@ function updateUI() {
     else {
       const elapsed = Date.now() - touchTime;
       if (elapsed < 1000) statusCard.innerHTML = `Touched! Checking...`;
-      else statusCard.innerHTML = `⚠️ Still moving! <b>Safe in ${Math.max(1, Math.ceil((4000 - elapsed) / 1000))} s</b>...`;
+      else statusCard.innerHTML = `⚠️ Still moving! <b>Safe in ${Math.max(1, Math.ceil((SETTLE_WINDOW_MS - elapsed) / 1000))} s</b>...`;
     }
   }
 
   if (gameState === 'DROP_WAIT' && hasTouched) {
     const elapsed = Date.now() - touchTime;
-    if (elapsed >= 1000) showTopRightTimer(Math.max(1, Math.ceil((4000 - elapsed) / 1000)), 'Safe In');
+    if (elapsed >= 1000) showTopRightTimer(Math.max(1, Math.ceil((SETTLE_WINDOW_MS - elapsed) / 1000)), 'Safe In');
     else hideTopRightTimer();
   } else if (gameMode === 'pvp-score' && (gameState === 'SELECT_CARD' || gameState === 'POSITIONING') && turnStartTime) {
-    // Score 模式的放置倒數（40 秒），跟「Safe In」共用同一個右上角位置與樣式
+    // Score 模式的放置倒數，跟「Safe In」共用同一個右上角位置與樣式
     const remainingSec = Math.max(0, Math.ceil((TURN_TIME_LIMIT_MS - (Date.now() - turnStartTime)) / 1000));
     showTopRightTimer(remainingSec, 'P' + currentPlayer + ' Place');
   } else {
