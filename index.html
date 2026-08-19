@@ -277,7 +277,52 @@
 
       /* 浮動工具鈕（橫式已不需要，功能併入右側按鈕區） */
       body[data-layout="landscape"] #floating-tools { display: none; }
+      /* 98 的 debug 按鈕在橫式時左上角會被 P1 資訊卡擋到，往下挪到頂部橫帶下方的空白處 */
+      body[data-layout="landscape"] #debugToggleBtn { top: 50px; left: 8px; }
     }
+
+    /* ========================================================
+       98：多數值測試模式（Debug Panel）
+       一顆按鈕開/關，面板一律「佈滿整個畫面」顯示，絕對不會跟遊戲版面產生任何重疊/擠壓問題。
+    ======================================================== */
+    #debugToggleBtn {
+      display: none; position: fixed; top: 8px; left: 8px; z-index: 500;
+      width: 34px; height: 34px; border-radius: 50%; background: rgba(24,24,28,0.9);
+      border: 1px solid #52525b; color: #fbbf24; font-size: 1rem; align-items: center; justify-content: center;
+      cursor: pointer; user-select: none; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+    #debugToggleBtn.debug-available { display: flex; }
+    #debugToggleBtn:active { background: #3f3f46; }
+    #debugToggleBtn.panel-open { color: #f87171; }
+
+    #debugPanel {
+      display: none; position: fixed; inset: 0; z-index: 480;
+      background: rgba(9,9,11,0.98); color: #e2e8f0;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 56px 16px 32px; box-sizing: border-box;
+    }
+    #debugPanel.active { display: block; }
+    .debug-panel-inner { max-width: 480px; margin: 0 auto; }
+    .debug-panel-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+    .debug-panel-sub { font-size: 0.75rem; color: #a1a1aa; margin-bottom: 18px; }
+    .debug-section-title { font-size: 0.85rem; font-weight: 700; color: #cbbe93; margin: 18px 0 10px; border-top: 1px solid #27272a; padding-top: 16px; }
+    .debug-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+    .debug-row label { font-size: 0.78rem; color: #a1a1aa; display: flex; justify-content: space-between; }
+    .debug-row label span.val { color: #e2e8f0; font-weight: 700; font-family: monospace; }
+    .debug-row input[type="range"] { width: 100%; accent-color: #4f46e5; }
+    .debug-shape-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 4px; }
+    .debug-shape-btn {
+      padding: 9px 4px; background: #27272a; border: 1px solid #3f3f46; border-radius: 6px;
+      color: #e2e8f0; font-size: 0.75rem; text-align: center; cursor: pointer; user-select: none;
+    }
+    .debug-shape-btn.selected { background: #4f46e5; border-color: #4f46e5; }
+    .debug-toggle-btn {
+      padding: 10px; background: #27272a; border: 1px solid #3f3f46; border-radius: 8px;
+      color: #e2e8f0; font-size: 0.85rem; font-weight: 700; text-align: center; cursor: pointer; width: 100%;
+    }
+    .debug-toggle-btn.on { background: #059669; border-color: #059669; }
+    .debug-actions { display: flex; gap: 8px; margin-top: 20px; }
+    .debug-actions button { flex: 1; }
   </style>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
@@ -332,7 +377,7 @@
     </div>
 
     <div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:24px;">
-      <input type="text" id="roomInput" class="room-input" placeholder="0-9" maxlength="1" inputmode="numeric" pattern="[0-9]">
+      <input type="text" id="roomInput" class="room-input" placeholder="0-9" maxlength="2" inputmode="numeric" pattern="[0-9]{1,2}">
       <button class="btn-restart" style="background:#059669;" onclick="joinRoom()">Join Room (P2)</button>
     </div>
 
@@ -413,6 +458,10 @@
     <div class="float-btn" onclick="toggleOrientationLayout()" title="切換直式/橫式">⤢</div>
     <div class="float-btn" onclick="toggleFullScreen()" title="全螢幕">🔲</div>
   </div>
+
+  <!-- 98：多數值測試模式。單一按鈕開/關，面板一律全螢幕顯示，不會跟任何遊戲版面重疊 -->
+  <div id="debugToggleBtn" onclick="toggleDebugPanel()" title="數值測試面板">🧪</div>
+  <div id="debugPanel"></div>
 
 <script>
 const WORKER_SOURCE = `
@@ -800,6 +849,133 @@ const WORKER_SOURCE = `
 let physicsWorker = null;
 let workerMsgCount = 0;
 
+// ============ 98：多數值測試模式的面板邏輯 ============
+// worker 內的 SHAPES_DATABASE 在 worker 字串裡，主執行緒另外複製一份同樣的清單，
+// 純粹用來讓面板知道有哪些形狀可以選、送 SET_FORCED_SHAPE 訊息時用。
+const DEBUG_SHAPES = [
+  { name: 'I', matrix: [[1,1,1,1]] }, { name: 'O', matrix: [[1,1],[1,1]] },
+  { name: 'T', matrix: [[0,1,0],[1,1,1]] }, { name: 'S', matrix: [[0,1,1],[1,1,0]] },
+  { name: 'Z', matrix: [[1,1,0],[0,1,1]] }, { name: 'J', matrix: [[1,0,0],[1,1,1]] },
+  { name: 'L', matrix: [[0,0,1],[1,1,1]] }, { name: 'Plus', matrix: [[0,1,0],[1,1,1],[0,1,0]] },
+  { name: 'LongL', matrix: [[1,0],[1,0],[1,0],[1,1]] }, { name: 'U', matrix: [[1,0,1],[1,1,1]] },
+  { name: 'SmallL', matrix: [[1,0],[1,1]] }, { name: 'Dot', matrix: [[1]] },
+  { name: 'Domino', matrix: [[1,1]] }, { name: 'Line3', matrix: [[1,1,1]] },
+  { name: 'BigCorner', matrix: [[1,0,0],[1,0,0],[1,1,1]] }
+];
+const DEBUG_DEFAULTS = {
+  gravity: 1.2, baseFriction: 1.81, baseFrictionStatic: 2.21,
+  blockFriction: 1.26, blockFrictionStatic: 1.46, frictionAir: 0.06,
+  density: 0.002, substeps: 2
+};
+const DEBUG_FIELDS = [
+  { id: 'gravity', label: 'Gravity', min: 0, max: 3, step: 0.05 },
+  { id: 'baseFriction', label: 'Base Friction', min: 0, max: 5, step: 0.01 },
+  { id: 'baseFrictionStatic', label: 'Base Friction (Static)', min: 0, max: 5, step: 0.01 },
+  { id: 'blockFriction', label: 'Block Friction', min: 0, max: 5, step: 0.01 },
+  { id: 'blockFrictionStatic', label: 'Block Friction (Static)', min: 0, max: 5, step: 0.01 },
+  { id: 'frictionAir', label: 'Air Friction', min: 0, max: 0.3, step: 0.005 },
+  { id: 'density', label: 'Density', min: 0.0002, max: 0.02, step: 0.0002 },
+  { id: 'substeps', label: 'Substeps', min: 1, max: 8, step: 1 },
+];
+let debugForceShapeOn = false;
+let debugForcedShapeName = 'L'; // 預設就是你印象中的四格 L 型
+
+function buildDebugPanel() {
+  const panel = document.getElementById('debugPanel');
+  const rowsHtml = DEBUG_FIELDS.map(f => `
+    <div class="debug-row">
+      <label>${f.label} <span class="val" id="dbgVal-${f.id}">${DEBUG_DEFAULTS[f.id]}</span></label>
+      <input type="range" id="dbg-${f.id}" min="${f.min}" max="${f.max}" step="${f.step}"
+             value="${DEBUG_DEFAULTS[f.id]}" oninput="onDebugFieldInput('${f.id}')">
+    </div>`).join('');
+
+  const shapeButtonsHtml = DEBUG_SHAPES.map(s => `
+    <div class="debug-shape-btn${s.name === debugForcedShapeName ? ' selected' : ''}"
+         id="dbgShapeBtn-${s.name}" onclick="selectDebugShape('${s.name}')">${s.name}</div>`).join('');
+
+  panel.innerHTML = `
+    <div class="debug-panel-inner">
+      <div class="debug-panel-title">🧪 Debug: Physics &amp; Shape Tuning</div>
+      <div class="debug-panel-sub">數值即改即生效；此面板全螢幕顯示，關閉後回到遊戲畫面。</div>
+
+      <div class="debug-section-title">Physics Values</div>
+      ${rowsHtml}
+
+      <div class="debug-section-title">Force Specific Shape</div>
+      <div id="dbgForceShapeToggle" class="debug-toggle-btn" onclick="toggleDebugForceShape()">Forcing: OFF</div>
+      <div class="debug-shape-grid">${shapeButtonsHtml}</div>
+
+      <div class="debug-actions">
+        <button class="btn-restart" style="background:#3f3f46;" onclick="resetDebugDefaults()">Reset Defaults</button>
+        <button class="btn-restart" style="background:#4f46e5;" onclick="toggleDebugPanel()">Close</button>
+      </div>
+    </div>
+  `;
+}
+
+function onDebugFieldInput(id) {
+  const el = document.getElementById('dbg-' + id);
+  const valEl = document.getElementById('dbgVal-' + id);
+  if (valEl) valEl.innerText = el.value;
+  sendDebugFriction();
+}
+
+function sendDebugFriction() {
+  if (!physicsWorker) return;
+  const v = id => { const el = document.getElementById('dbg-' + id); return el ? parseFloat(el.value) : DEBUG_DEFAULTS[id]; };
+  physicsWorker.postMessage({
+    type: 'SET_FRICTION',
+    gravity: v('gravity'),
+    baseFriction: v('baseFriction'),
+    baseFrictionStatic: v('baseFrictionStatic'),
+    blockFriction: v('blockFriction'),
+    blockFrictionStatic: v('blockFrictionStatic'),
+    frictionAir: v('frictionAir'),
+    density: v('density'),
+    substeps: v('substeps'),
+  });
+}
+
+function selectDebugShape(name) {
+  debugForcedShapeName = name;
+  document.querySelectorAll('.debug-shape-btn').forEach(b => b.classList.toggle('selected', b.id === 'dbgShapeBtn-' + name));
+  if (debugForceShapeOn) sendDebugForcedShape();
+}
+function toggleDebugForceShape() {
+  debugForceShapeOn = !debugForceShapeOn;
+  const btn = document.getElementById('dbgForceShapeToggle');
+  if (btn) { btn.innerText = debugForceShapeOn ? 'Forcing: ON (' + debugForcedShapeName + ')' : 'Forcing: OFF'; btn.classList.toggle('on', debugForceShapeOn); }
+  sendDebugForcedShape();
+}
+function sendDebugForcedShape() {
+  if (!physicsWorker) return;
+  if (debugForceShapeOn) {
+    const template = DEBUG_SHAPES.find(s => s.name === debugForcedShapeName);
+    physicsWorker.postMessage({ type: 'SET_FORCED_SHAPE', shape: template });
+  } else {
+    physicsWorker.postMessage({ type: 'SET_FORCED_SHAPE', shape: null });
+  }
+}
+
+function resetDebugDefaults() {
+  DEBUG_FIELDS.forEach(f => {
+    const el = document.getElementById('dbg-' + f.id);
+    const valEl = document.getElementById('dbgVal-' + f.id);
+    if (el) el.value = DEBUG_DEFAULTS[f.id];
+    if (valEl) valEl.innerText = DEBUG_DEFAULTS[f.id];
+  });
+  sendDebugFriction();
+}
+
+// 單一按鈕開/關；面板永遠全螢幕顯示，不會跟任何版面重疊或推擠
+function toggleDebugPanel() {
+  const panel = document.getElementById('debugPanel');
+  const btn = document.getElementById('debugToggleBtn');
+  const isOpening = !panel.classList.contains('active');
+  panel.classList.toggle('active', isOpening);
+  if (btn) btn.classList.toggle('panel-open', isOpening);
+}
+
 function createPhysicsWorker() {
   const blob = new Blob([WORKER_SOURCE], { type: 'application/javascript' });
   physicsWorker = new Worker(URL.createObjectURL(blob));
@@ -895,6 +1071,10 @@ function resetConnectionState() {
   try { if (peer) peer.destroy(); } catch (e) {}
   physicsWorker = null; conn = null; peer = null; myRole = null;
   isSoloTestMode = false;
+  const dbgBtn = document.getElementById('debugToggleBtn');
+  const dbgPanel = document.getElementById('debugPanel');
+  if (dbgBtn) dbgBtn.classList.remove('debug-available', 'panel-open');
+  if (dbgPanel) dbgPanel.classList.remove('active');
 }
 
 function renderConnectPanel(mode, code) {
@@ -990,12 +1170,48 @@ function enterSoloTestMode() {
   physicsWorker.postMessage({ type: 'INIT' });
 }
 
+// 99：單人玩雙邊，測試三種雙人模式的完整規則（回合、倒數、勝負判定都跟真連線一樣，
+// 只是兩邊都自己操作）。畫面顯示正常的 Player 1 / Player 2，不加 (Test) 字樣。
+function showBothSidesModePicker() {
+  const panel = document.getElementById('connectPanel');
+  panel.className = 'connect-panel has-content';
+  panel.innerHTML = `
+    <div style="font-size:0.72rem; color:#a8a29e;">Solo (Both Sides) — pick a mode to test</div>
+    <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
+      <button class="btn-restart" style="background:#4f46e5;" onclick="enterSoloBothSidesMode('coop')">Team Up</button>
+      <button class="btn-restart" style="background:#4f46e5;" onclick="enterSoloBothSidesMode('pvp-drops')">Versus</button>
+      <button class="btn-restart" style="background:#4f46e5;" onclick="enterSoloBothSidesMode('pvp-score')">Score</button>
+    </div>
+    <button class="btn-cancel" style="margin-top:8px;" onclick="renderConnectPanel(null)">Cancel</button>
+  `;
+}
+function enterSoloBothSidesMode(mode) {
+  resetConnectionState();
+  isSoloTestMode = true; // 沿用「輪到誰、輸入就直接控制誰」的既有機制
+  myRole = 'P1';
+  createPhysicsWorker();
+  document.getElementById('lobbyOverlay').classList.remove('active');
+  document.getElementById('p1Title').innerText = 'Player 1';
+  document.getElementById('p2Title').innerText = 'Player 2';
+  physicsWorker.postMessage({ type: 'INIT', mode });
+}
+
+// 98：多數值測試模式。用 1 人模式開局，並顯示左上角的 🧪 按鈕，可隨時開關全螢幕調參面板。
+function enterDebugTuningMode() {
+  startSoloChallenge();
+  const btn = document.getElementById('debugToggleBtn');
+  if (btn) btn.classList.add('debug-available');
+  buildDebugPanel();
+}
+
 function joinRoom() {
   document.activeElement.blur();
   const targetId = document.getElementById('roomInput').value.trim();
   if (targetId === '12345') { enterSoloTestMode(); return; }
-  if (!targetId) return alert('Please enter the 1-digit Room ID (0-9).');
-  if (!/^[0-9]$/.test(targetId)) return alert('Room ID must be a single digit (0-9).');
+  if (targetId === '99') { showBothSidesModePicker(); return; }
+  if (targetId === '98') { enterDebugTuningMode(); return; }
+  if (!targetId) return alert('Please enter a 1-digit Room ID (0-9).');
+  if (!/^[0-9]$/.test(targetId)) return alert('Room ID must be a single digit (0-9). (98/99 are local test modes.)');
 
   resetConnectionState(); 
   peer = new Peer();
@@ -1682,4 +1898,4 @@ renderLobbyTwoLightning('iconPvpScore', '#c6b7b2', '#cbbe93');
 </script>
 
 </body>
-  </html>
+</html>
