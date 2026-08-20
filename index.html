@@ -236,6 +236,31 @@
        98：多數值測試模式（Debug Panel）
        一顆按鈕開/關，面板一律「佈滿整個畫面」顯示，絕對不會跟遊戲版面產生任何重疊/擠壓問題。
     ======================================================== */
+    /* 暫時性診斷用：左下角執行紀錄面板 */
+    #debugLogToggleBtn {
+      position: fixed; left: 8px; bottom: 8px; z-index: 700;
+      background: rgba(63,63,70,0.95); border: 1px solid #71717a; color: #e2e8f0;
+      padding: 8px 14px; border-radius: 999px; font-size: 0.78rem; font-weight: 700;
+      cursor: pointer; user-select: none; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+    #debugLogToggleBtn:active { background: #52525b; }
+    #debugLogPanel {
+      display: none; position: fixed; inset: 0; z-index: 690;
+      background: rgba(5,5,7,0.97); color: #4ade80; font-family: 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 0.72rem; line-height: 1.5; padding: 50px 10px 60px; overflow-y: auto;
+      white-space: pre-wrap; word-break: break-word; -webkit-overflow-scrolling: touch;
+    }
+    #debugLogPanel.active { display: block; }
+    #debugLogPanel .log-line { border-bottom: 1px solid #1c1c1f; padding: 4px 2px; }
+    #debugLogPanel .log-line.err { color: #f87171; }
+    #debugLogClearBtn {
+      position: fixed; right: 8px; top: 8px; z-index: 700;
+      background: rgba(63,63,70,0.95); border: 1px solid #71717a; color: #e2e8f0;
+      padding: 6px 12px; border-radius: 999px; font-size: 0.72rem; font-weight: 700;
+      cursor: pointer; user-select: none; display: none;
+    }
+    #debugLogPanel.active + #debugLogClearBtn { display: block; }
+
     #debugToggleBtn {
       display: none; position: fixed; top: 8px; left: 8px; z-index: 500;
       width: 34px; height: 34px; border-radius: 50%; background: rgba(24,24,28,0.9);
@@ -526,6 +551,11 @@
   </div>
 
   <!-- 98：多數值測試模式。單一按鈕開/關，面板一律全螢幕顯示，不會跟任何遊戲版面重疊 -->
+  <!-- 暫時性診斷工具：左下角，隨時可開關的執行紀錄面板 -->
+  <div id="debugLogToggleBtn" onclick="toggleDebugLog()">📋 Log</div>
+  <div id="debugLogPanel"></div>
+  <div id="debugLogClearBtn" onclick="clearDebugLog()">Clear</div>
+
   <div id="debugToggleBtn" onclick="toggleDebugPanel()" title="數值測試面板">🧪</div>
   <div id="debugPanel"></div>
 
@@ -615,17 +645,41 @@
   </div>
 
 <script>
-// ===== 暫時性診斷用：任何未捕捉的錯誤都會跳出來，方便回報 =====
-window.addEventListener('error', function(e) {
-  try {
-    alert('DEBUG - JS Error:\n' + e.message + '\nAt: ' + (e.filename ? e.filename.split('/').pop() : '?') + ':' + e.lineno + ':' + e.colno);
-  } catch (err) {}
+// ===== 暫時性診斷用：左下角按鈕開/關一個執行紀錄面板，記錄關鍵步驟跟錯誤 =====
+let debugLogEntries = [];
+function debugLog(msg, isError) {
+  const time = new Date().toTimeString().slice(0, 8);
+  debugLogEntries.push({ time, msg: String(msg), isError: !!isError });
+  if (debugLogEntries.length > 400) debugLogEntries.shift();
+  renderDebugLog();
+  try { console.log('[LOG]', msg); } catch (e) {}
+}
+function renderDebugLog() {
+  const panel = document.getElementById('debugLogPanel');
+  if (!panel || !panel.classList.contains('active')) return;
+  panel.innerHTML = debugLogEntries.map(function (e) {
+    return '<div class="log-line' + (e.isError ? ' err' : '') + '">[' + e.time + '] ' + e.msg + '</div>';
+  }).join('') + '<div id="logBottomAnchor"></div>';
+  const anchor = document.getElementById('logBottomAnchor');
+  if (anchor) anchor.scrollIntoView();
+}
+function toggleDebugLog() {
+  const panel = document.getElementById('debugLogPanel');
+  if (!panel) return;
+  panel.classList.toggle('active');
+  renderDebugLog();
+}
+function clearDebugLog() {
+  debugLogEntries = [];
+  renderDebugLog();
+}
+window.addEventListener('error', function (e) {
+  debugLog('JS ERROR: ' + e.message + '  @' + (e.filename ? e.filename.split('/').pop() : '?') + ':' + e.lineno + ':' + e.colno, true);
 });
-window.addEventListener('unhandledrejection', function(e) {
-  try {
-    alert('DEBUG - Unhandled Promise Rejection:\n' + (e.reason && e.reason.message ? e.reason.message : e.reason));
-  } catch (err) {}
+window.addEventListener('unhandledrejection', function (e) {
+  debugLog('PROMISE REJECTED: ' + (e.reason && e.reason.message ? e.reason.message : e.reason), true);
 });
+debugLog('Page script started loading.');
 
 const WORKER_SOURCE = `
   try {
@@ -1170,9 +1224,13 @@ let htpCurrentPage = 1;
 const HTP_TOTAL_PAGES = 3;
 
 function openHowToPlay() {
+  debugLog('openHowToPlay(): clicked');
   htpCurrentPage = 1;
   htpRenderPage();
-  document.getElementById('howToPlayOverlay').classList.add('active');
+  const el = document.getElementById('howToPlayOverlay');
+  if (!el) { debugLog('openHowToPlay(): #howToPlayOverlay NOT FOUND!', true); return; }
+  el.classList.add('active');
+  debugLog('openHowToPlay(): overlay active class added');
 }
 function closeHowToPlay() {
   document.getElementById('howToPlayOverlay').classList.remove('active');
@@ -1194,18 +1252,21 @@ function htpRenderPage() {
 }
 
 function createPhysicsWorker() {
+  debugLog('createPhysicsWorker(): start');
   const blob = new Blob([WORKER_SOURCE], { type: 'application/javascript' });
+  debugLog('createPhysicsWorker(): blob created, constructing Worker...');
   physicsWorker = new Worker(URL.createObjectURL(blob));
+  debugLog('createPhysicsWorker(): Worker constructed OK');
 
   physicsWorker.onerror = (e) => {
     console.error('Worker Error:', e.message, e);
-    alert('Worker failed. Press F12 to check errors:\n' + e.message);
+    debugLog('Worker runtime error: ' + e.message, true);
   };
 
   physicsWorker.onmessage = (e) => {
     if (e.data.type === 'ERROR') {
       console.error('[Worker Error]', e.data.message);
-      alert('Worker error. Press F12 to check errors:\n' + e.data.message);
+      debugLog('Worker init error: ' + e.data.message, true);
       return;
     }
     if (e.data.type !== 'STATE') return;
@@ -1319,14 +1380,16 @@ function renderConnectPanel(mode, code) {
 // PeerJS 公共伺服器上的房間 ID 撞號；使用者只需要知道並輸入這個數字。
 const ROOM_ID_PREFIX = 'tetrimess-room-';
 function createRoom(mode) {
+  debugLog('createRoom(' + mode + '): start');
   selectedRoomMode = mode || 'pvp-drops';
   const roomDigit = String(Math.floor(Math.random() * 10)); // 單一數字 0~9
   currentRoomId = roomDigit;
   myRole = 'P1';
   try {
     peer = new Peer(ROOM_ID_PREFIX + roomDigit);
+    debugLog('createRoom(): Peer object constructed');
   } catch (e) {
-    console.error('Failed to create Peer:', e);
+    debugLog('createRoom(): Peer construction FAILED: ' + e.message, true);
     const codeEl = document.getElementById('connectCodeText');
     if (codeEl) codeEl.innerText = 'Failed';
     return;
@@ -1334,29 +1397,33 @@ function createRoom(mode) {
   try {
     createPhysicsWorker();
   } catch (e) {
-    console.error('Failed to start physics worker:', e);
+    debugLog('createRoom(): physics worker failed: ' + e.message, true);
   }
 
   peer.on('open', () => {
+    debugLog('createRoom(): peer open, room id = ' + roomDigit);
     currentRoomId = roomDigit;
     const codeEl = document.getElementById('connectCodeText');
     if (codeEl) codeEl.innerText = roomDigit;
   });
 
   peer.on('connection', (c) => {
+    debugLog('createRoom(): P2 connected!');
     conn = c;
     setupConnection();
-    try { if (physicsWorker) physicsWorker.postMessage({ type: 'INIT', mode: selectedRoomMode }); } catch (e) { console.error(e); }
+    try { if (physicsWorker) physicsWorker.postMessage({ type: 'INIT', mode: selectedRoomMode }); } catch (e) { debugLog('INIT postMessage failed: ' + e.message, true); }
     revealGameplayWithIntro(selectedRoomMode);
   });
 
   peer.on('error', (err) => {
+    debugLog('createRoom(): peer error: ' + (err && err.message ? err.message : err), true);
     const codeEl = document.getElementById('connectCodeText');
     if (codeEl) codeEl.innerText = 'Failed';
   });
 }
 
 function startSoloChallenge() {
+  debugLog('startSoloChallenge(): clicked');
   document.activeElement.blur();
   resetConnectionState();
   myRole = 'P1';
@@ -1365,15 +1432,19 @@ function startSoloChallenge() {
   try {
     createPhysicsWorker();
     physicsWorker.postMessage({ type: 'INIT', mode: 'solo' });
+    debugLog('startSoloChallenge(): worker INIT message sent');
   } catch (e) {
-    console.error('Failed to start physics worker:', e);
+    debugLog('startSoloChallenge(): worker failed: ' + e.message, true);
   }
+  debugLog('startSoloChallenge(): calling revealGameplayWithIntro...');
   revealGameplayWithIntro('solo');
+  debugLog('startSoloChallenge(): done');
 }
 
 function selectRoomMode(mode, btnEl) {
+  debugLog('selectRoomMode(' + mode + '): clicked');
   document.activeElement.blur();
-  if (selectedRoomMode === mode) return; 
+  if (selectedRoomMode === mode) { debugLog('selectRoomMode(): same mode already selected, ignored'); return; }
 
   resetConnectionState(); 
 
@@ -1439,11 +1510,14 @@ let introSkipRemote = false;
 let introDismissed = false;
 
 function revealGameplayWithIntro(mode) {
+  debugLog('revealGameplayWithIntro(' + mode + '): hiding lobby...');
   document.getElementById('lobbyOverlay').classList.remove('active');
   showGameIntro(mode);
+  debugLog('revealGameplayWithIntro(' + mode + '): done');
 }
 
 function showGameIntro(mode) {
+  debugLog('showGameIntro(' + mode + '): start');
   introSkipLocal = false; introSkipRemote = false; introDismissed = false;
   const content = MODE_INTRO_CONTENT[mode] || MODE_INTRO_CONTENT['solo'];
   const taglineEl = document.getElementById('gameIntroTagline');
@@ -1462,7 +1536,10 @@ function showGameIntro(mode) {
     if (secondsLeft <= 0) dismissGameIntro();
   }, 1000);
 
-  document.getElementById('gameIntroOverlay').classList.add('active');
+  const overlay = document.getElementById('gameIntroOverlay');
+  if (!overlay) { debugLog('showGameIntro(): #gameIntroOverlay NOT FOUND IN DOM!', true); return; }
+  overlay.classList.add('active');
+  debugLog('showGameIntro(): overlay .active class added, classList=' + overlay.className);
 }
 
 function dismissGameIntro() {
@@ -1504,7 +1581,9 @@ function enterSoloTestMode() {
 // 99：單人玩雙邊，測試三種雙人模式的完整規則（回合、倒數、勝負判定都跟真連線一樣，
 // 只是兩邊都自己操作）。畫面顯示正常的 Player 1 / Player 2，不加 (Test) 字樣。
 function showBothSidesModePicker() {
+  debugLog('showBothSidesModePicker(): rendering 3-mode picker into #connectPanel');
   const panel = document.getElementById('connectPanel');
+  if (!panel) { debugLog('showBothSidesModePicker(): #connectPanel NOT FOUND!', true); return; }
   panel.className = 'connect-panel has-content';
   panel.innerHTML = `
     <div style="font-size:0.72rem; color:#a8a29e;">Solo (Both Sides) — pick a mode to test</div>
@@ -1515,8 +1594,10 @@ function showBothSidesModePicker() {
     </div>
     <button class="btn-cancel" style="margin-top:8px;" onclick="renderConnectPanel(null)">Cancel</button>
   `;
+  debugLog('showBothSidesModePicker(): picker rendered, panel className=' + panel.className);
 }
 function enterSoloBothSidesMode(mode) {
+  debugLog('enterSoloBothSidesMode(' + mode + '): clicked');
   resetConnectionState();
   isSoloTestMode = true; // 沿用「輪到誰、輸入就直接控制誰」的既有機制
   myRole = 'P1';
@@ -1526,13 +1607,14 @@ function enterSoloBothSidesMode(mode) {
     createPhysicsWorker();
     physicsWorker.postMessage({ type: 'INIT', mode });
   } catch (e) {
-    console.error('Failed to start physics worker:', e);
+    debugLog('enterSoloBothSidesMode(): worker failed: ' + e.message, true);
   }
   revealGameplayWithIntro(mode);
 }
 
 // 98：多數值測試模式。用 1 人模式開局，並顯示左上角的 🧪 按鈕，可隨時開關全螢幕調參面板。
 function enterDebugTuningMode() {
+  debugLog('enterDebugTuningMode(): clicked');
   startSoloChallenge();
   const btn = document.getElementById('debugToggleBtn');
   if (btn) btn.classList.add('debug-available');
@@ -1540,6 +1622,7 @@ function enterDebugTuningMode() {
 }
 
 function joinRoom() {
+  debugLog('joinRoom(): clicked, input value = "' + document.getElementById('roomInput').value + '"');
   document.activeElement.blur();
   const targetId = document.getElementById('roomInput').value.trim();
   if (targetId === '12345') { enterSoloTestMode(); return; }
@@ -1553,19 +1636,22 @@ function joinRoom() {
   document.getElementById('lobbyStatus').innerText = 'Connecting...';
   try {
     peer = new Peer();
+    debugLog('joinRoom(): Peer constructed');
   } catch (e) {
-    console.error('Failed to create Peer:', e);
+    debugLog('joinRoom(): Peer construction FAILED: ' + e.message, true);
     alert('Connection failed to initialize. Your browser/network may be blocking it.');
     document.getElementById('lobbyStatus').innerText = 'Failed to connect. Try again.';
     return;
   }
 
   peer.on('open', () => {
+    debugLog('joinRoom(): peer open, connecting to room ' + targetId);
     conn = peer.connect(ROOM_ID_PREFIX + targetId, { reliable: true });
     setupConnection();
   });
 
   peer.on('error', (err) => {
+    debugLog('joinRoom(): peer error: ' + (err && err.message ? err.message : err), true);
     alert('Connection failed. Check Room ID.');
     document.getElementById('lobbyStatus').innerText = 'Failed to connect. Try again.';
   });
@@ -1996,137 +2082,4 @@ function onOrientationPointerUp(e) {
 // 放開後記住位置（存在 localStorage，下次打開自動套用）。用來補償不同手機「遊玩區沒有真的頂到最上方」的顯示差異。
 // 只在直式模式生效；橫式時此按鈕維持單純的全螢幕開關，不會觸發拖曳。
 const PAGE_OFFSET_KEY = 'tetrimess-page-offset-portrait';
-function loadPageOffset() {
-  try { const v = localStorage.getItem(PAGE_OFFSET_KEY); return v ? parseFloat(v) : 0; } catch (e) { return 0; }
-}
-function savePageOffset(px) {
-  try { localStorage.setItem(PAGE_OFFSET_KEY, String(px)); } catch (e) {}
-}
-function applyPageOffset(px) {
-  const box = document.querySelector('.game-container');
-  const hand = document.querySelector('.hand-container-vertical');
-  const t = px ? `translateY(${px}px)` : '';
-  if (box) box.style.transform = t;
-  if (hand) hand.style.transform = t;
-}
-function refreshPageOffset() {
-  if (document.body.getAttribute('data-layout') === 'portrait') {
-    applyPageOffset(loadPageOffset());
-  } else {
-    applyPageOffset(0); // 橫式不套用這個位移，只有直式支援這個調整
-  }
-}
-
-let pagePressTimer = null;
-let pageDragActive = false;
-let pageDragStartY = 0;
-let pageDragBaseOffset = 0;
-let pageDragMin = 0;
-let pageDragMax = 0;
-
-function onFullscreenPointerDown(e) {
-  pageDragActive = false;
-  pageDragStartY = e.clientY;
-  pageDragBaseOffset = loadPageOffset();
-  clearTimeout(pagePressTimer);
-  if (document.body.getAttribute('data-layout') !== 'portrait') return; // 僅直式支援拖曳，橫式僅短按有效
-  pagePressTimer = setTimeout(() => {
-    pageDragActive = true;
-    const vh = window.innerHeight;
-    pageDragMin = -Math.round(vh * 0.6);
-    pageDragMax = Math.round(vh * 0.3);
-    const btn = document.getElementById('mc-fullscreen');
-    if (btn) btn.classList.add('dragging');
-    if (navigator.vibrate) { try { navigator.vibrate(15); } catch (err) {} }
-  }, CONTROLS_LONG_PRESS_MS);
-  const btn = document.getElementById('mc-fullscreen');
-  if (btn && btn.setPointerCapture) { try { btn.setPointerCapture(e.pointerId); } catch (err) {} }
-}
-function onFullscreenPointerMove(e) {
-  if (!pageDragActive) return;
-  e.preventDefault();
-  const delta = e.clientY - pageDragStartY;
-  const next = Math.max(pageDragMin, Math.min(pageDragMax, pageDragBaseOffset + delta));
-  applyPageOffset(next);
-}
-function onFullscreenPointerUp(e) {
-  clearTimeout(pagePressTimer);
-  const btn = document.getElementById('mc-fullscreen');
-  if (pageDragActive) {
-    const delta = e.clientY - pageDragStartY;
-    const finalOffset = Math.max(pageDragMin, Math.min(pageDragMax, pageDragBaseOffset + delta));
-    applyPageOffset(finalOffset);
-    savePageOffset(finalOffset);
-    if (btn) btn.classList.remove('dragging');
-  } else {
-    toggleFullScreen();
-  }
-  pageDragActive = false;
-}
-(function bindFullscreenDrag() {
-  const btn = document.getElementById('mc-fullscreen');
-  if (!btn) return;
-  btn.addEventListener('pointerdown', onFullscreenPointerDown);
-  btn.addEventListener('pointermove', onFullscreenPointerMove);
-  btn.addEventListener('pointerup', onFullscreenPointerUp);
-  btn.addEventListener('pointercancel', onFullscreenPointerUp);
-  btn.addEventListener('contextmenu', e => e.preventDefault());
-})();
-
-// 讓遊玩區永遠依照 336:600 的正確比例縮放，不再頂滿螢幕左右或上下
-const GAME_RATIO = 336 / 600;
-function fitGameContainer() {
-  const panel = document.querySelector('.center-panel');
-  const box = document.querySelector('.game-container');
-  if (!panel || !box) return;
-
-  if (!isMobileLayoutActive()) {
-    box.style.width = '';
-    box.style.height = '';
-    return;
-  }
-
-  const sideMargin = 16; // 保留左右可見邊距，避免遊玩區直接頂到螢幕最左最右
-  const availW = panel.clientWidth - sideMargin * 2;
-  const availH = panel.clientHeight;
-  if (availW <= 0 || availH <= 0) return;
-
-  let w = availH * GAME_RATIO;
-  let h = availH;
-  if (w > availW) { w = availW; h = availW / GAME_RATIO; }
-
-  box.style.width = w + 'px';
-  box.style.height = h + 'px';
-}
-
-// 五選三手牌區：直式時定位在遊玩區「紅線」下方一點點的位置（不緊貼紅線）
-// 紅線在畫布高度 60/600 = 10% 處（見 drawFrame 裡的安全線）
-const RED_LINE_RATIO = 60 / 600;
-const HAND_ROW_GAP_BELOW_LINE = 14; // 紅線下方留的間距，避免緊貼
-function positionHandRow() {
-  const hand = document.querySelector('.hand-container-vertical');
-  if (!hand) return;
-  if (document.body.getAttribute('data-layout') !== 'portrait' || !isMobileLayoutActive()) {
-    hand.style.top = '';
-    return;
-  }
-  const box = document.querySelector('.game-container');
-  const wrapper = document.querySelector('.layout-wrapper');
-  if (!box || !wrapper) return;
-  // 量測「未套用拖曳位移」時的自然位置：若此時 box 已經有長按拖曳套用的 transform，
-  // 直接讀 getBoundingClientRect 會把那個位移也讀進來，之後又疊加一次 transform，造成位移被算兩次。
-  // 所以量測前先暫時拿掉 transform，量完再還原，確保這裡永遠是「未拖曳」的基準位置。
-  const prevTransform = box.style.transform;
-  if (prevTransform) box.style.transform = 'none';
-  const boxRect = box.getBoundingClientRect();
-  if (prevTransform) box.style.transform = prevTransform;
-  const wrapperRect = wrapper.getBoundingClientRect();
-  const redLineY = boxRect.top + boxRect.height * RED_LINE_RATIO;
-  hand.style.top = Math.round(redLineY - wrapperRect.top + HAND_ROW_GAP_BELOW_LINE) + 'px';
-}
-
-function refreshLayout() {
-  autoDetectLayout();
-  requestAnimationFrame(() => {
-    fitGameContainer();
-    applyCont
+function loadPageO
