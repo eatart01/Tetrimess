@@ -507,7 +507,7 @@ const WORKER_SOURCE = `
   let sharedDropCount = 0, playerScores = { 1: 0, 2: 0 };
   const PVP_SCORE_TARGET = 35;
   let playerTimeoutStrikes = { 1: 0, 2: 0 }; // 超時罰則獨立計數，跟 playerScores 分開，不共用輸分門檻
-  const MOVE_RANGE_SHRINK = 4 * TILE_SIZE; const TURN_TIME_LIMIT_MS = 15000;
+  const MOVE_RANGE_SHRINK = 4 * TILE_SIZE; const TURN_TIME_LIMIT_MS = 60000;
   let turnStartTime = 0;
   let sharedHand = [], selectedCardIndex = 0, activeShape = null, activeMatrix = null;
   let posX = CANVAS_WIDTH / 2, posY = 200, countdownTimer = null, countdownValue = 3;
@@ -736,19 +736,18 @@ const WORKER_SOURCE = `
     playerTimeoutStrikes[p] = (playerTimeoutStrikes[p] || 0) + 1;
     const strikes = playerTimeoutStrikes[p];
 
-    if (strikes >= 4) {
+    if (strikes >= 3) {
       lastDropWarningMsg = '';
-      endGame('P' + (p === 1 ? 2 : 1) + ' Wins!', 'P' + p + ' timed out 4 times!');
+      endGame('P' + (p === 1 ? 2 : 1) + ' Wins!', 'P' + p + ' timed out 3 times!');
       return;
     }
 
-    const penaltyByStrike = { 1: 0, 2: 1, 3: 2 };
+    const penaltyByStrike = { 1: 0, 2: 1 };
     const penalty = penaltyByStrike[strikes] || 0;
     if (penalty > 0) playerScores[p] -= penalty;
 
     if (strikes === 1) lastDropWarningMsg = '⏰ P' + p + ' Time Out! (1st free pass, no penalty)';
-    else if (strikes === 2) lastDropWarningMsg = '⏰ P' + p + ' Time Out! -1 pt (Total: ' + playerScores[p] + ')';
-    else lastDropWarningMsg = '⚠️ P' + p + ' Time Out! -2 pts. Next time-out = LOSE!';
+    else lastDropWarningMsg = '⚠️ P' + p + ' Time Out! -1 pt. Next time-out = LOSE!';
 
     // 方塊留在原地原位置、不換人：只重置計時器讓同一位玩家繼續嘗試
     turnStartTime = Date.now();
@@ -1357,7 +1356,7 @@ let hasTouched = false, touchTime = 0;
 let modalTitle = '', modalDesc = ''; 
 let gameMode = 'pvp-drops', sharedDropCount = 0, playerScores = { 1: 0, 2: 0 }, turnStartTime = 0;
 let playerTimeoutStrikes = { 1: 0, 2: 0 };
-const TURN_TIME_LIMIT_MS = 15000; // 跟 worker 裡的值保持一致，只有 Score 模式會用到（見 updateUI 的倒數顯示）
+const TURN_TIME_LIMIT_MS = 60000; // 跟 worker 裡的值保持一致，只有 Score 模式會用到（見 updateUI 的倒數顯示）
 let localBodies = []; 
 
 function snapToGrid(px, cols) { const hw = (cols * TILE_SIZE) / 2; const le = px - hw; const sle = BASE_LEFT_X + Math.round((le - BASE_LEFT_X) / TILE_SIZE) * TILE_SIZE; return sle + hw; }
@@ -1423,7 +1422,7 @@ function updateUI() {
     // Score 模式的放置倒數，跟「Safe In」共用同一個右上角位置與樣式
     const remainingSec = Math.max(0, Math.ceil((TURN_TIME_LIMIT_MS - (Date.now() - turnStartTime)) / 1000));
     const strikes = (playerTimeoutStrikes && playerTimeoutStrikes[currentPlayer]) || 0;
-    showTopRightTimer(remainingSec, 'P' + currentPlayer + ' Place', strikes === 3 ? 'Last Chance!' : '');
+    showTopRightTimer(remainingSec, 'P' + currentPlayer + ' Place', strikes === 2 ? 'Last Chance!' : '');
   } else {
     hideTopRightTimer();
   }
