@@ -1322,9 +1322,20 @@ function createRoom(mode) {
   selectedRoomMode = mode || 'pvp-drops';
   const roomDigit = String(Math.floor(Math.random() * 10)); // 單一數字 0~9
   currentRoomId = roomDigit;
-  peer = new Peer(ROOM_ID_PREFIX + roomDigit);
   myRole = 'P1';
-  createPhysicsWorker();
+  try {
+    peer = new Peer(ROOM_ID_PREFIX + roomDigit);
+  } catch (e) {
+    console.error('Failed to create Peer:', e);
+    const codeEl = document.getElementById('connectCodeText');
+    if (codeEl) codeEl.innerText = 'Failed';
+    return;
+  }
+  try {
+    createPhysicsWorker();
+  } catch (e) {
+    console.error('Failed to start physics worker:', e);
+  }
 
   peer.on('open', () => {
     currentRoomId = roomDigit;
@@ -1335,7 +1346,7 @@ function createRoom(mode) {
   peer.on('connection', (c) => {
     conn = c;
     setupConnection();
-    physicsWorker.postMessage({ type: 'INIT', mode: selectedRoomMode });
+    try { if (physicsWorker) physicsWorker.postMessage({ type: 'INIT', mode: selectedRoomMode }); } catch (e) { console.error(e); }
     revealGameplayWithIntro(selectedRoomMode);
   });
 
@@ -1538,9 +1549,16 @@ function joinRoom() {
   if (!/^[0-9]$/.test(targetId)) return alert('Room ID must be a single digit (0-9). (98/99 are local test modes.)');
 
   resetConnectionState(); 
-  peer = new Peer();
   myRole = 'P2';
   document.getElementById('lobbyStatus').innerText = 'Connecting...';
+  try {
+    peer = new Peer();
+  } catch (e) {
+    console.error('Failed to create Peer:', e);
+    alert('Connection failed to initialize. Your browser/network may be blocking it.');
+    document.getElementById('lobbyStatus').innerText = 'Failed to connect. Try again.';
+    return;
+  }
 
   peer.on('open', () => {
     conn = peer.connect(ROOM_ID_PREFIX + targetId, { reliable: true });
@@ -2111,20 +2129,4 @@ function refreshLayout() {
   autoDetectLayout();
   requestAnimationFrame(() => {
     fitGameContainer();
-    applyControlsOffset(loadControlsOffset());
-    positionHandRow();
-    refreshPageOffset();
-  });
-}
-
-refreshLayout();
-// 用 ResizeObserver 監看遊玩區實際的渲染尺寸，一旦真正確定下來就重新定位五選三手牌區。
-// 比單純依賴 requestAnimationFrame 更可靠：手機實際旋轉時，瀏覽器網址列/工具列的收合動畫
-// 常常會橫跨好幾個 frame 才穩定，單一 rAF 有時會讀到「還沒定型」的尺寸，導致手牌位置忽高忽低。
-if (window.ResizeObserver) {
-  const gameContainerEl = document.querySelector('.game-container');
-  if (gameContainerEl) {
-    let resizeObserverFrame = null;
-    const gameContainerObserver = new ResizeObserver(() => {
-      if (resizeObserverFrame) cancelAnimationFrame(resizeObserverFrame);
-      resizeObserverFrame = requestAnim
+    applyCont
