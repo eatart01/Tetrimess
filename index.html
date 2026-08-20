@@ -11,10 +11,6 @@
       padding: 0;
       user-select: none;
     }
-    html {
-      overflow-x: hidden;
-      width: 100%;
-    }
     body {
       background-color: #0f0f12;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -24,7 +20,6 @@
       justify-content: center;
       height: 100vh;
       width: 100vw;
-      max-width: 100%;
       overflow: hidden;
       padding-top: 4px;
       touch-action: manipulation;
@@ -232,35 +227,65 @@
       body[data-layout="portrait"] #top-players-container .player-card { flex: 1; }
     }
 
+    /* ================= 橫式 (Landscape，通則版，之後再微調) ================= */
+    @media (max-width: 900px), (max-height: 700px) {
+      body[data-layout="landscape"] .layout-wrapper {
+        display: block; position: relative; width: 100vw; height: 100vh; padding: 0;
+      }
+
+      /* 頂部橫帶：左 P1、右 P2，皆貼著螢幕左右上方 (絕對定位，不佔版面) */
+      body[data-layout="landscape"] #top-players-container {
+        position: absolute; top: 4px; left: 6px; right: 6px; width: auto;
+        display: flex; flex-direction: row; justify-content: space-between; gap: 0; margin: 0;
+        z-index: 20; pointer-events: none;
+      }
+      body[data-layout="landscape"] #top-players-container .player-card { width: 128px; flex: 0 0 auto; pointer-events: auto; }
+      body[data-layout="landscape"] .player-title { font-size: 0.72rem; }
+      body[data-layout="landscape"] .drop-status { font-size: 0.62rem; }
+
+      /* 手牌區置中疊在頂部橫帶中間 */
+      body[data-layout="landscape"] .hand-container-vertical {
+        position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
+        display: flex; flex-direction: row; gap: 4px; margin: 0; z-index: 20;
+      }
+      body[data-layout="landscape"] .card { width: 34px; height: 34px; }
+
+      /* 遊玩區佔滿整個畫面置中，寬度依比例縮放 (由 JS 精確計算) */
+      body[data-layout="landscape"] .center-panel {
+        width: 100vw; height: 100vh; box-sizing: border-box;
+        display: flex; align-items: center; justify-content: center; padding: 46px 0 0 0; position: relative;
+      }
+      body[data-layout="landscape"] .game-container { margin: 0 auto; }
+      body[data-layout="landscape"] canvas { width: auto; height: 100%; max-width: 100%; object-fit: contain; }
+
+      /* 橫式空間較寬，操作鈕移到畫面左右兩側空白處，不與遊玩區重疊 */
+      /* 橫式按鈕微調：整體尺寸加大10%，高度再額外加大20% */
+      body[data-layout="landscape"] #mobile-controls-row { display: contents; }
+      body[data-layout="landscape"] #mobile-controls-left {
+        position: fixed; left: 10px; bottom: 6%; width: 37.4vw; max-width: 209px;
+        grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr);
+        gap: 6px;
+      }
+      body[data-layout="landscape"] #mobile-controls-right {
+        position: fixed; right: 10px; bottom: 6%; width: 37.4vw; max-width: 209px;
+        grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr);
+        gap: 6px;
+      }
+      body[data-layout="landscape"] .mc-btn {
+        height: 53px; /* 40px 基準：先加大 10% (44px) 再額外加高 20% ≈ 53px */
+        font-size: 1.22rem;
+      }
+
+      /* 浮動工具鈕（橫式已不需要，功能併入右側按鈕區） */
+      body[data-layout="landscape"] #floating-tools { display: none; }
+      /* 98 的 debug 按鈕在橫式時左上角會被 P1 資訊卡擋到，往下挪到頂部橫帶下方的空白處 */
+      body[data-layout="landscape"] #debugToggleBtn { top: 50px; left: 8px; }
+    }
+
     /* ========================================================
        98：多數值測試模式（Debug Panel）
        一顆按鈕開/關，面板一律「佈滿整個畫面」顯示，絕對不會跟遊戲版面產生任何重疊/擠壓問題。
     ======================================================== */
-    /* 暫時性診斷用：左下角執行紀錄面板 */
-    #debugLogToggleBtn {
-      position: fixed; left: 8px; bottom: 8px; z-index: 700;
-      background: rgba(63,63,70,0.95); border: 1px solid #71717a; color: #e2e8f0;
-      padding: 8px 14px; border-radius: 999px; font-size: 0.78rem; font-weight: 700;
-      cursor: pointer; user-select: none; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
-    }
-    #debugLogToggleBtn:active { background: #52525b; }
-    #debugLogPanel {
-      display: none; position: fixed; inset: 0; z-index: 690;
-      background: rgba(5,5,7,0.97); color: #4ade80; font-family: 'SF Mono', Menlo, Consolas, monospace;
-      font-size: 0.72rem; line-height: 1.5; padding: 50px 10px 60px; overflow-y: auto;
-      white-space: pre-wrap; word-break: break-word; -webkit-overflow-scrolling: touch;
-    }
-    #debugLogPanel.active { display: block; }
-    #debugLogPanel .log-line { border-bottom: 1px solid #1c1c1f; padding: 4px 2px; }
-    #debugLogPanel .log-line.err { color: #f87171; }
-    #debugLogClearBtn {
-      position: fixed; right: 8px; top: 8px; z-index: 700;
-      background: rgba(63,63,70,0.95); border: 1px solid #71717a; color: #e2e8f0;
-      padding: 6px 12px; border-radius: 999px; font-size: 0.72rem; font-weight: 700;
-      cursor: pointer; user-select: none; display: none;
-    }
-    #debugLogPanel.active + #debugLogClearBtn { display: block; }
-
     #debugToggleBtn {
       display: none; position: fixed; top: 8px; left: 8px; z-index: 500;
       width: 34px; height: 34px; border-radius: 50%; background: rgba(24,24,28,0.9);
@@ -299,51 +324,6 @@
     .debug-toggle-btn.on { background: #059669; border-color: #059669; }
     .debug-actions { display: flex; gap: 8px; margin-top: 20px; }
     .debug-actions button { flex: 1; }
-
-    /* ========================================================
-       開局前 10 秒過場說明畫面（四個模式共用一套結構，內容依模式替換）
-    ======================================================== */
-    .game-intro-overlay {
-      display: none; position: fixed; inset: 0; z-index: 550;
-      background: rgba(10,10,12,0.95); backdrop-filter: blur(4px);
-      align-items: center; justify-content: center;
-    }
-    .game-intro-overlay.active { display: flex; }
-    .game-intro-countdown {
-      position: absolute; top: 14px; right: 14px;
-      background: rgba(63,63,70,0.9); border: 1px solid #71717a; color: #e2e8f0;
-      padding: 6px 14px; border-radius: 8px; font-size: 1rem; font-weight: 700; letter-spacing: 0.5px;
-    }
-    .game-intro-content { display: flex; flex-direction: column; align-items: center; gap: 26px; padding: 0 20px; }
-    .game-intro-tagline { font-size: 1.6rem; font-weight: 800; color: #f1f5f9; letter-spacing: 0.5px; text-align: center; }
-    .game-intro-skip {
-      position: absolute; right: 16px; bottom: 16px;
-      background: rgba(63,63,70,0.9); border: 1px solid #71717a; color: #e2e8f0;
-      padding: 10px 20px; border-radius: 999px; font-size: 0.9rem; font-weight: 700;
-      cursor: pointer; user-select: none; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-    }
-    .game-intro-skip:active { background: #52525b; }
-    .game-intro-skip.done { opacity: 0.6; pointer-events: none; }
-
-    .intro-illust-box { position: relative; width: 160px; height: 110px; }
-    .intro-line { position: absolute; top: 8px; left: 0; right: 0; border-top: 2px dashed #b71c1c; }
-    .intro-stack { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column-reverse; gap: 2px; }
-    .intro-block { width: 38px; height: 16px; border-radius: 4px; }
-    .intro-base { position: absolute; bottom: 0; left: 8px; width: 52px; height: 14px; border-radius: 3px; background: #3f3f46; }
-    .intro-falling-block { position: absolute; width: 30px; height: 20px; border-radius: 4px; }
-    .intro-x { position: absolute; top: 12px; right: 26px; color: #ef4444; font-size: 2.2rem; font-weight: 900; }
-    .intro-thumb { position: absolute; font-size: 1.3rem; }
-
-    @media (max-width: 900px), (max-height: 700px) {
-      .game-intro-tagline { font-size: 1.9rem; }
-      .intro-illust-box { width: 190px; height: 140px; }
-      .intro-block { width: 46px; height: 20px; }
-      .intro-base { width: 62px; height: 16px; }
-      .intro-x { font-size: 2.6rem; }
-      .intro-thumb { font-size: 1.6rem; }
-      .game-intro-countdown { font-size: 1.1rem; padding: 8px 16px; }
-      .game-intro-skip { font-size: 1rem; padding: 12px 22px; }
-    }
 
     /* ========================================================
        How to Play：單人模式下方的說明按鈕 + 三頁說明視窗
@@ -410,116 +390,7 @@
       .htp-nav-btn { font-size: 0.92rem; padding: 11px 16px; }
     }
   </style>
-  
-<script>
-/*
- * Browser-safe UI event bridge.
- * The original game used inline onclick handlers. This bridge binds the
- * critical UI through addEventListener/delegation so normal mobile browsers
- * do not depend on inline event-handler execution.
- */
-(function () {
-  'use strict';
-
-  window.__uiBridgeBooted = false;
-
-  function callGameFunction(name, args) {
-    try {
-      var fn = window[name];
-      if (typeof fn !== 'function') {
-        console.error('[UI Bridge] Missing function:', name);
-        return false;
-      }
-      fn.apply(window, args || []);
-      return true;
-    } catch (err) {
-      console.error('[UI Bridge] ' + name + ' failed:', err);
-      return false;
-    }
-  }
-
-  function handleAction(action, el) {
-    if (!action) return false;
-    const sep = action.indexOf(':');
-    const name = sep === -1 ? action : action.slice(0, sep);
-    const arg = sep === -1 ? undefined : action.slice(sep + 1);
-
-    switch (name) {
-      case 'toggleDebugLog': return callGameFunction('toggleDebugLog');
-      case 'startSoloChallenge': return callGameFunction('startSoloChallenge');
-      case 'openHowToPlay': return callGameFunction('openHowToPlay');
-      case 'closeHowToPlay': return callGameFunction('closeHowToPlay');
-      case 'tapIntroSkip': return callGameFunction('tapIntroSkip');
-      case 'htpGoPrev': return callGameFunction('htpGoPrev');
-      case 'htpGoNext': return callGameFunction('htpGoNext');
-      case 'joinRoom': return callGameFunction('joinRoom');
-      case 'resetGame': return callGameFunction('resetGame');
-      case 'toggleOrientationLayout': return callGameFunction('toggleOrientationLayout');
-      case 'toggleFullScreen': return callGameFunction('toggleFullScreen');
-      case 'clearDebugLog': return callGameFunction('clearDebugLog');
-      case 'toggleDebugPanel': return callGameFunction('toggleDebugPanel');
-      case 'toggleDebugForceShape': return callGameFunction('toggleDebugForceShape');
-      case 'resetDebugDefaults': return callGameFunction('resetDebugDefaults');
-      case 'copyCurrentRoomId': return callGameFunction('copyCurrentRoomId');
-      case 'cancelRoomCreation': return callGameFunction('cancelRoomCreation');
-      case 'renderConnectPanelNull': return callGameFunction('renderConnectPanel', [null]);
-      case 'selectRoomMode': return callGameFunction('selectRoomMode', [arg, el]);
-      case 'enterSoloBothSidesMode': return callGameFunction('enterSoloBothSidesMode', [arg]);
-      case 'selectDebugShape': return callGameFunction('selectDebugShape', [arg]);
-    }
-    return false;
-  }
-
-  function bind() {
-    if (window.__uiBridgeBooted) return;
-    window.__uiBridgeBooted = true;
-
-    document.addEventListener('click', function (event) {
-      var el = event.target && event.target.closest
-        ? event.target.closest('[data-action]')
-        : null;
-      if (!el) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      handleAction(el.getAttribute('data-action'), el);
-    }, true);
-
-    document.addEventListener('touchend', function (event) {
-      var el = event.target && event.target.closest
-        ? event.target.closest('[data-action]')
-        : null;
-      if (!el) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      handleAction(el.getAttribute('data-action'), el);
-    }, { capture: true, passive: false });
-
-    console.log('[UI Bridge] installed');
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bind, { once: true });
-  } else {
-    bind();
-  }
-})();
-</script>
-
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-
-<style id="mobile-ui-event-fix">
-  #debugLogToggleBtn,
-  #introSkipBtn,
-  #htpPrevBtn,
-  #htpNextBtn,
-  [data-action] {
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-  }
-</style>
-
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
 
@@ -531,13 +402,13 @@
     <div class="lobby-row">
       <div class="mode-substack-wrap" id="soloColumnWrap">
         <div class="mode-substack-title" style="visibility:hidden;">Make Room (P1)</div>
-        <button class="mode-card c-i" data-action="startSoloChallenge">
+        <button class="mode-card c-i" onclick="startSoloChallenge()">
           <div class="mode-icon-blocks" id="iconSolo"></div>
           <div class="mode-name">1 Player Mode</div>
-          <div class="mode-sub">Play alone. Reach the line to win!</div>
+          <div class="mode-sub">Play alone. Stack as high as you can.</div>
         </button>
-        <button class="mode-card how-to-play-btn" data-action="openHowToPlay">
-          <div class="mode-icon-blocks" style="color:#cbbe93; font-weight:800;">?</div>
+        <button class="mode-card how-to-play-btn" onclick="openHowToPlay()">
+          <div class="mode-icon-blocks">❓</div>
           <div class="mode-name">How to Play</div>
           <div class="mode-sub">Rules for every mode</div>
         </button>
@@ -546,21 +417,21 @@
       <div class="mode-substack-wrap">
         <div class="mode-substack-title">Make Room (P1)</div>
         <div class="mode-substack" id="modeSubstack">
-          <button class="mode-card c-t" data-mode="coop" data-action="selectRoomMode:coop">
+          <button class="mode-card c-t" data-mode="coop" onclick="selectRoomMode('coop', this)">
             <div class="mode-icon-blocks" id="iconCoop"></div>
             <div class="mode-text">
               <div class="mode-name">2 Players: Team Up</div>
-              <div class="mode-sub">Work together. Reach the line to win!</div>
+              <div class="mode-sub">Share 11 drops. Stack high together.</div>
             </div>
           </button>
-          <button class="mode-card c-o" data-mode="pvp-drops" data-action="selectRoomMode:pvp-drops">
+          <button class="mode-card c-o" data-mode="pvp-drops" onclick="selectRoomMode('pvp-drops', this)">
             <div class="mode-icon-blocks" id="iconPvpDrops"></div>
             <div class="mode-text">
               <div class="mode-name">2 Players: Versus</div>
               <div class="mode-sub">First to drop 11 blocks loses.</div>
             </div>
           </button>
-          <button class="mode-card c-z" data-mode="pvp-score" data-action="selectRoomMode:pvp-score">
+          <button class="mode-card c-z" data-mode="pvp-score" onclick="selectRoomMode('pvp-score', this)">
             <div class="mode-icon-blocks" id="iconPvpScore"></div>
             <div class="mode-text">
               <div class="mode-name">2 Players: Topple</div>
@@ -578,7 +449,7 @@
 
     <div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:24px;">
       <input type="text" id="roomInput" class="room-input" placeholder="0-9" maxlength="2" inputmode="numeric" pattern="[0-9]{1,2}">
-      <button class="btn-restart" style="background:#059669;" data-action="joinRoom">Join Room (P2)</button>
+      <button class="btn-restart" style="background:#059669;" onclick="joinRoom()">Join Room (P2)</button>
     </div>
 
     <div class="modal-desc" id="lobbyStatus" style="margin-top:16px;"></div>
@@ -616,7 +487,7 @@
         <div id="modalOverlay" class="modal-overlay">
           <div id="modalTitle" class="modal-title">P1 Wins!</div>
           <div id="modalDesc" class="modal-desc">P2 dropped too many blocks.</div>
-          <button class="btn-restart" id="btnRestart" data-action="resetGame">Play Again</button>
+          <button class="btn-restart" id="btnRestart" onclick="resetGame()">Play Again</button>
         </div>
       </div>
 
@@ -655,32 +526,18 @@
 
   <!-- 右下角微型工具按鈕：直橫式切換 / 全螢幕 (手機模式下已整合進主控制區，此處僅供桌面/備用) -->
   <div id="floating-tools">
-    <div class="float-btn" data-action="toggleOrientationLayout" title="切換直式/橫式">⤢</div>
-    <div class="float-btn" data-action="toggleFullScreen" title="全螢幕">🔲</div>
+    <div class="float-btn" onclick="toggleOrientationLayout()" title="切換直式/橫式">⤢</div>
+    <div class="float-btn" onclick="toggleFullScreen()" title="全螢幕">🔲</div>
   </div>
 
   <!-- 98：多數值測試模式。單一按鈕開/關，面板一律全螢幕顯示，不會跟任何遊戲版面重疊 -->
-  <!-- 暫時性診斷工具：左下角，隨時可開關的執行紀錄面板 -->
-  <div id="debugLogToggleBtn" data-action="toggleDebugLog">📋 Log</div>
-  <div id="debugLogPanel"></div>
-  <div id="debugLogClearBtn" data-action="clearDebugLog">Clear</div>
-
-  <div id="debugToggleBtn" data-action="toggleDebugPanel" title="數值測試面板">🧪</div>
+  <div id="debugToggleBtn" onclick="toggleDebugPanel()" title="數值測試面板">🧪</div>
   <div id="debugPanel"></div>
 
-  <!-- 開局前 10 秒過場說明畫面 -->
-  <div id="gameIntroOverlay" class="game-intro-overlay">
-    <div class="game-intro-countdown"><span id="introCountdownVal">10</span>s</div>
-    <div class="game-intro-content">
-      <div class="intro-illust-box" id="gameIntroIllustration"></div>
-      <div class="game-intro-tagline" id="gameIntroTagline">Reach the Line</div>
-    </div>
-    <div class="game-intro-skip" id="introSkipBtn" data-action="tapIntroSkip">Skip ⏭</div>
-  </div>
-
+  <!-- How to Play：三頁說明視窗 -->
   <div id="howToPlayOverlay">
     <div class="htp-modal">
-      <div class="htp-close" data-action="closeHowToPlay">✕</div>
+      <div class="htp-close" onclick="closeHowToPlay()">✕</div>
       <div class="htp-body">
 
         <div class="htp-page active" data-page="1">
@@ -688,15 +545,15 @@
           <div class="htp-page-title">🧱 Solo &amp; Team Up</div>
           <div class="htp-section">
             <h4>Goal</h4>
-            <p>Reach the red line without toppling. That's a win!</p>
+            <p>Stack blocks. Keep the stack below the red line at the top. Don't let it get too tall!</p>
           </div>
           <div class="htp-section">
-            <h4>1 Player</h4>
-            <p>Stack alone.</p>
+            <h4>1 Player Mode</h4>
+            <p>Play alone. Stack as high as you can without crossing the line.</p>
           </div>
           <div class="htp-section">
-            <h4>Team Up</h4>
-            <p>Share one stack. Work together.</p>
+            <h4>2 Players: Team Up</h4>
+            <p>You and your friend share one stack. Work together — stay stable, stay low.</p>
           </div>
         </div>
 
@@ -705,14 +562,14 @@
           <div class="htp-page-title">⚔️ Versus</div>
           <div class="htp-section">
             <h4>Goal</h4>
-            <p>Take turns dropping blocks. 11 dropped off the edge = you lose.</p>
+            <p>Take turns dropping blocks. First player to drop 11 blocks off the edge loses.</p>
           </div>
           <div class="htp-section">
             <h4>"Safe In" Countdown</h4>
-            <p>Blocks get a few seconds to settle before your turn ends.</p>
+            <p>After your block touches something, it gets a few seconds to settle. If it stops moving, your turn ends safely.</p>
           </div>
           <div class="htp-highlight-box">
-            <span class="htp-warn">⚠️</span> A block can fall <b>late</b>. If it falls after the turn has passed, <span class="htp-warn">it counts for whoever's turn it is then</span> — not who dropped it!
+            <span class="htp-warn">⚠️ Important:</span> a block doesn't have to fall right away — it can wobble and fall later. If it falls off <b>after</b> the turn has already passed, <span class="htp-warn">it counts against whoever's turn it is at that moment</span> — not the player who dropped it!
           </div>
         </div>
 
@@ -721,89 +578,39 @@
           <div class="htp-page-title">🏆 Topple</div>
           <div class="htp-section">
             <h4>Goal</h4>
-            <p>Knock blocks off to score. First to 35 points wins.</p>
+            <p>Smaller play area. Knock blocks off the edge to score points. First to 35 points wins.</p>
           </div>
           <div class="htp-section">
             <h4>Scoring</h4>
-            <p>Score = <b>cells</b> that fall, not blocks.</p>
+            <p>Your score = the number of <b>cells</b> (tiles) in the blocks that fall off — not the number of blocks.</p>
           </div>
           <div class="htp-section">
-            <h4>3-Strike Timer</h4>
+            <h4>Placement Timer: 3-Strike Rule</h4>
             <ul>
-              <li><b>1st</b> time-out: free.</li>
-              <li><b>2nd</b>: −1 point.</li>
-              <li><b>3rd</b>: you lose.</li>
+              <li><b>1st</b> time-out: free pass, no penalty.</li>
+              <li><b>2nd</b> time-out: −1 point.</li>
+              <li><b>3rd</b> time-out: you lose the game.</li>
             </ul>
           </div>
           <div class="htp-highlight-box">
-            <span class="htp-warn">⚠️</span> Same as Versus — a <b>late</b> fall counts for whoever's turn it is then, not who caused it!
+            <span class="htp-warn">⚠️ Important:</span> just like Versus, a slow collapse can keep falling after your turn ends. If those blocks fall off <b>after</b> the turn has passed, <span class="htp-warn">the points go to whoever's turn it is at that moment</span> — not the player who caused the collapse!
           </div>
         </div>
 
       </div>
       <div class="htp-nav">
-        <div class="htp-nav-btn" id="htpPrevBtn" data-action="htpGoPrev">‹ Prev</div>
+        <div class="htp-nav-btn" id="htpPrevBtn" onclick="htpGoPrev()">‹ Prev</div>
         <div class="htp-dots">
           <span class="htp-dot active" data-dot="1"></span>
           <span class="htp-dot" data-dot="2"></span>
           <span class="htp-dot" data-dot="3"></span>
         </div>
-        <div class="htp-nav-btn" id="htpNextBtn" data-action="htpGoNext">Next ›</div>
+        <div class="htp-nav-btn" id="htpNextBtn" onclick="htpGoNext()">Next ›</div>
       </div>
     </div>
   </div>
 
 <script>
-// ===== 暫時性診斷用：左下角按鈕開/關一個執行紀錄面板，記錄關鍵步驟跟錯誤 =====
-let debugLogEntries = [];
-let debugLogLastMsg = '';
-let debugLogRepeatCount = 0;
-function debugLog(msg, isError) {
-  msg = String(msg);
-  if (msg === debugLogLastMsg) {
-    debugLogRepeatCount++;
-    if (debugLogRepeatCount > 3) {
-      // 同一則訊息短時間內重複太多次（例如迴圈裡持續報錯），只更新最後一筆的次數，不再整批塞新的 DOM 節點
-      const last = debugLogEntries[debugLogEntries.length - 1];
-      if (last) { last.msg = msg + '  (x' + debugLogRepeatCount + ')'; renderDebugLog(); return; }
-    }
-  } else {
-    debugLogLastMsg = msg;
-    debugLogRepeatCount = 1;
-  }
-  const time = new Date().toTimeString().slice(0, 8);
-  debugLogEntries.push({ time, msg, isError: !!isError });
-  if (debugLogEntries.length > 400) debugLogEntries.shift();
-  renderDebugLog();
-  try { console.log('[LOG]', msg); } catch (e) {}
-}
-function renderDebugLog() {
-  const panel = document.getElementById('debugLogPanel');
-  if (!panel || !panel.classList.contains('active')) return;
-  panel.innerHTML = debugLogEntries.map(function (e) {
-    return '<div class="log-line' + (e.isError ? ' err' : '') + '">[' + e.time + '] ' + e.msg + '</div>';
-  }).join('') + '<div id="logBottomAnchor"></div>';
-  const anchor = document.getElementById('logBottomAnchor');
-  if (anchor) anchor.scrollIntoView();
-}
-function toggleDebugLog() {
-  const panel = document.getElementById('debugLogPanel');
-  if (!panel) return;
-  panel.classList.toggle('active');
-  renderDebugLog();
-}
-function clearDebugLog() {
-  debugLogEntries = [];
-  renderDebugLog();
-}
-window.addEventListener('error', function (e) {
-  debugLog('JS ERROR: ' + e.message + '  @' + (e.filename ? e.filename.split('/').pop() : '?') + ':' + e.lineno + ':' + e.colno, true);
-});
-window.addEventListener('unhandledrejection', function (e) {
-  debugLog('PROMISE REJECTED: ' + (e.reason && e.reason.message ? e.reason.message : e.reason), true);
-});
-debugLog('Page script started loading.');
-
 const WORKER_SOURCE = `
   try {
     importScripts('https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js');
@@ -845,15 +652,6 @@ const WORKER_SOURCE = `
   let gameMode = 'pvp-drops';
   let sharedDropCount = 0, playerScores = { 1: 0, 2: 0 };
   const PVP_SCORE_TARGET = 35;
-  // Solo / Team Up 過關（壓線且撐過穩定倒數）時隨機挑一句慶祝語
-  const SUCCESS_MESSAGES = [
-    'Amazing Success', 'Tremendous Success', 'Awesome Success', 'Epic Success', 'Solid Success',
-    'Massive Success', 'Total Success', 'Brilliant Success', 'Stellar Success', 'Flawless Success',
-    'Legendary Success', 'Smashing Success', 'Glorious Success', 'Mighty Success', 'Perfect Success',
-    'Sweet Success', 'Roaring Success', 'Dazzling Success', 'Shocking Success', 'Absolute Success',
-    'Wild Success', 'Golden Success', 'Ridiculous Success', 'Spectacular Success', 'Unstoppable Success',
-    'Heroic Success', 'Suspicious Success', 'Towering Success', 'Colossal Success', 'Narrow Success'
-  ];
   let playerTimeoutStrikes = { 1: 0, 2: 0 }; // 超時罰則獨立計數，跟 playerScores 分開，不共用輸分門檻
   const MOVE_RANGE_SHRINK = 4 * TILE_SIZE; const TURN_TIME_LIMIT_MS = 60000;
   let turnStartTime = 0;
@@ -1071,15 +869,7 @@ const WORKER_SOURCE = `
   function finishTurn() {
     if (gameState === 'GAME_OVER') return;
     currentDroppedBody = null; hasTouched = false;
-    if (getHighestY() <= 60) {
-      if (gameMode === 'solo' || gameMode === 'coop') {
-        const msg = SUCCESS_MESSAGES[Math.floor(Math.random() * SUCCESS_MESSAGES.length)];
-        endGame(msg, gameMode === 'coop' ? 'You reached the line together!' : 'You reached the line!');
-      } else {
-        endGame('Draw!', 'The tower is too high!');
-      }
-      return;
-    }
+    if (getHighestY() <= 60) { endGame('Draw!', 'The tower is too high!'); return; }
 
     if (gameMode !== 'solo') currentPlayer = currentPlayer === 1 ? 2 : 1;
     selectedCardIndex = 0; gameState = 'SELECT_CARD';
@@ -1257,7 +1047,7 @@ function buildDebugPanel() {
 
   const shapeButtonsHtml = DEBUG_SHAPES.map(s => `
     <div class="debug-shape-btn${s.name === debugForcedShapeName ? ' selected' : ''}"
-         id="dbgShapeBtn-${s.name}" data-action="selectDebugShape:${s.name}">${s.name}</div>`).join('');
+         id="dbgShapeBtn-${s.name}" onclick="selectDebugShape('${s.name}')">${s.name}</div>`).join('');
 
   panel.innerHTML = `
     <div class="debug-panel-inner">
@@ -1268,12 +1058,12 @@ function buildDebugPanel() {
       ${rowsHtml}
 
       <div class="debug-section-title">Force Specific Shape</div>
-      <div id="dbgForceShapeToggle" class="debug-toggle-btn" data-action="toggleDebugForceShape">Forcing: OFF</div>
+      <div id="dbgForceShapeToggle" class="debug-toggle-btn" onclick="toggleDebugForceShape()">Forcing: OFF</div>
       <div class="debug-shape-grid">${shapeButtonsHtml}</div>
 
       <div class="debug-actions">
-        <button class="btn-restart" style="background:#3f3f46;" data-action="resetDebugDefaults">Reset Defaults</button>
-        <button class="btn-restart" style="background:#4f46e5;" data-action="toggleDebugPanel">Close</button>
+        <button class="btn-restart" style="background:#3f3f46;" onclick="resetDebugDefaults()">Reset Defaults</button>
+        <button class="btn-restart" style="background:#4f46e5;" onclick="toggleDebugPanel()">Close</button>
       </div>
     </div>
   `;
@@ -1347,13 +1137,9 @@ let htpCurrentPage = 1;
 const HTP_TOTAL_PAGES = 3;
 
 function openHowToPlay() {
-  debugLog('openHowToPlay(): clicked');
   htpCurrentPage = 1;
   htpRenderPage();
-  const el = document.getElementById('howToPlayOverlay');
-  if (!el) { debugLog('openHowToPlay(): #howToPlayOverlay NOT FOUND!', true); return; }
-  el.classList.add('active');
-  debugLog('openHowToPlay(): overlay active class added');
+  document.getElementById('howToPlayOverlay').classList.add('active');
 }
 function closeHowToPlay() {
   document.getElementById('howToPlayOverlay').classList.remove('active');
@@ -1375,21 +1161,18 @@ function htpRenderPage() {
 }
 
 function createPhysicsWorker() {
-  debugLog('createPhysicsWorker(): start');
   const blob = new Blob([WORKER_SOURCE], { type: 'application/javascript' });
-  debugLog('createPhysicsWorker(): blob created, constructing Worker...');
   physicsWorker = new Worker(URL.createObjectURL(blob));
-  debugLog('createPhysicsWorker(): Worker constructed OK');
 
   physicsWorker.onerror = (e) => {
     console.error('Worker Error:', e.message, e);
-    debugLog('Worker runtime error: ' + e.message, true);
+    alert('Worker failed. Press F12 to check errors:\n' + e.message);
   };
 
   physicsWorker.onmessage = (e) => {
     if (e.data.type === 'ERROR') {
       console.error('[Worker Error]', e.data.message);
-      debugLog('Worker init error: ' + e.data.message, true);
+      alert('Worker error. Press F12 to check errors:\n' + e.data.message);
       return;
     }
     if (e.data.type !== 'STATE') return;
@@ -1473,7 +1256,6 @@ function resetConnectionState() {
   try { if (peer) peer.destroy(); } catch (e) {}
   physicsWorker = null; conn = null; peer = null; myRole = null;
   isSoloTestMode = false;
-  p2IntroShown = false;
   const dbgBtn = document.getElementById('debugToggleBtn');
   const dbgPanel = document.getElementById('debugPanel');
   if (dbgBtn) dbgBtn.classList.remove('debug-available', 'panel-open');
@@ -1493,9 +1275,9 @@ function renderConnectPanel(mode, code) {
     <div style="color:#e2e8f0; font-weight:700; font-size:0.85rem;">${MODE_NAMES[mode]}</div>
     <div style="font-size:0.72rem; color:#a8a29e; margin-top:4px;">Room ID</div>
     <div class="code-text" id="connectCodeText">${code || 'Connecting...'}</div>
-    <button id="copyBtn" class="btn-copy" data-action="copyCurrentRoomId">📋 Copy ID</button>
+    <button id="copyBtn" class="btn-copy" onclick="copyCurrentRoomId()">📋 Copy ID</button>
     <div class="waiting-text">Waiting for friend...</div>
-    <button class="btn-cancel" data-action="cancelRoomCreation">Cancel</button>
+    <button class="btn-cancel" onclick="cancelRoomCreation()">Cancel</button>
   `;
 }
 
@@ -1503,71 +1285,46 @@ function renderConnectPanel(mode, code) {
 // PeerJS 公共伺服器上的房間 ID 撞號；使用者只需要知道並輸入這個數字。
 const ROOM_ID_PREFIX = 'tetrimess-room-';
 function createRoom(mode) {
-  debugLog('createRoom(' + mode + '): start');
   selectedRoomMode = mode || 'pvp-drops';
   const roomDigit = String(Math.floor(Math.random() * 10)); // 單一數字 0~9
   currentRoomId = roomDigit;
+  peer = new Peer(ROOM_ID_PREFIX + roomDigit);
   myRole = 'P1';
-  try {
-    peer = new Peer(ROOM_ID_PREFIX + roomDigit);
-    debugLog('createRoom(): Peer object constructed');
-  } catch (e) {
-    debugLog('createRoom(): Peer construction FAILED: ' + e.message, true);
-    const codeEl = document.getElementById('connectCodeText');
-    if (codeEl) codeEl.innerText = 'Failed';
-    return;
-  }
-  try {
-    createPhysicsWorker();
-  } catch (e) {
-    debugLog('createRoom(): physics worker failed: ' + e.message, true);
-  }
+  createPhysicsWorker();
 
   peer.on('open', () => {
-    debugLog('createRoom(): peer open, room id = ' + roomDigit);
     currentRoomId = roomDigit;
     const codeEl = document.getElementById('connectCodeText');
     if (codeEl) codeEl.innerText = roomDigit;
   });
 
   peer.on('connection', (c) => {
-    debugLog('createRoom(): P2 connected!');
     conn = c;
     setupConnection();
-    try { if (physicsWorker) physicsWorker.postMessage({ type: 'INIT', mode: selectedRoomMode }); } catch (e) { debugLog('INIT postMessage failed: ' + e.message, true); }
-    revealGameplayWithIntro(selectedRoomMode);
+    document.getElementById('lobbyOverlay').classList.remove('active');
+    physicsWorker.postMessage({ type: 'INIT', mode: selectedRoomMode });
   });
 
   peer.on('error', (err) => {
-    debugLog('createRoom(): peer error: ' + (err && err.message ? err.message : err), true);
     const codeEl = document.getElementById('connectCodeText');
     if (codeEl) codeEl.innerText = 'Failed';
   });
 }
 
 function startSoloChallenge() {
-  debugLog('startSoloChallenge(): clicked');
   document.activeElement.blur();
   resetConnectionState();
   myRole = 'P1';
+  createPhysicsWorker();
+  document.getElementById('lobbyOverlay').classList.remove('active');
   document.getElementById('p1Title').innerText = 'Player 1 (You)';
   document.getElementById('p2Title').innerText = 'Player 2';
-  try {
-    createPhysicsWorker();
-    physicsWorker.postMessage({ type: 'INIT', mode: 'solo' });
-    debugLog('startSoloChallenge(): worker INIT message sent');
-  } catch (e) {
-    debugLog('startSoloChallenge(): worker failed: ' + e.message, true);
-  }
-  debugLog('startSoloChallenge(): calling revealGameplayWithIntro...');
-  revealGameplayWithIntro('solo');
-  debugLog('startSoloChallenge(): done');
+  physicsWorker.postMessage({ type: 'INIT', mode: 'solo' });
 }
 
 function selectRoomMode(mode, btnEl) {
-  debugLog('selectRoomMode(' + mode + '): clicked');
   document.activeElement.blur();
-  if (selectedRoomMode === mode) { debugLog('selectRoomMode(): same mode already selected, ignored'); return; }
+  if (selectedRoomMode === mode) return; 
 
   resetConnectionState(); 
 
@@ -1586,158 +1343,46 @@ function cancelRoomCreation() {
 }
 
 let isSoloTestMode = false;
-let p2IntroShown = false;
-
-// ============ 開局前 10 秒過場說明畫面（四個模式都有）============
-const MODE_INTRO_CONTENT = {
-  'solo': { tagline: 'Reach the Line', kind: 'stack' },
-  'coop': { tagline: 'Reach the Line', kind: 'stack' },
-  'pvp-drops': { tagline: 'Do Not Drop', kind: 'versus' },
-  'pvp-score': { tagline: 'Topple to Score', kind: 'topple' },
-};
-
-function isRealMultiplayerSession() { return !!(conn && myRole && !isSoloTestMode); }
-
-function renderIntroIllustration(kind) {
-  const box = document.getElementById('gameIntroIllustration');
-  if (!box) return;
-  if (kind === 'stack') {
-    box.innerHTML = `
-      <div class="intro-line"></div>
-      <div class="intro-stack">
-        <div class="intro-block" style="background:#8ca1ab"></div>
-        <div class="intro-block" style="background:#af9a92"></div>
-        <div class="intro-block" style="background:#cbbe93"></div>
-        <div class="intro-block" style="background:#9ead9d"></div>
-      </div>`;
-  } else if (kind === 'versus') {
-    box.innerHTML = `
-      <div class="intro-base"></div>
-      <div class="intro-falling-block" style="background:#af9a92; left:22px; top:18px;"></div>
-      <div class="intro-x">✕</div>`;
-  } else if (kind === 'topple') {
-    box.innerHTML = `
-      <div class="intro-base"></div>
-      <div class="intro-falling-block" style="background:#af9a92; left:14px; top:14px;"></div>
-      <div class="intro-falling-block" style="background:#cbbe93; left:56px; top:34px;"></div>
-      <div class="intro-thumb" style="top:-4px;left:-4px;">👍</div>
-      <div class="intro-thumb" style="bottom:-4px;left:-4px;">👍</div>
-      <div class="intro-thumb" style="top:-4px;right:-4px;">👍</div>
-      <div class="intro-thumb" style="bottom:-4px;right:-4px;">👍</div>`;
-  }
-}
-
-let introCountdownTimer = null;
-let introSkipLocal = false;
-let introSkipRemote = false;
-let introDismissed = false;
-
-function revealGameplayWithIntro(mode) {
-  debugLog('revealGameplayWithIntro(' + mode + '): hiding lobby...');
-  document.getElementById('lobbyOverlay').classList.remove('active');
-  showGameIntro(mode);
-  debugLog('revealGameplayWithIntro(' + mode + '): done');
-}
-
-function showGameIntro(mode) {
-  debugLog('showGameIntro(' + mode + '): start');
-  introSkipLocal = false; introSkipRemote = false; introDismissed = false;
-  const content = MODE_INTRO_CONTENT[mode] || MODE_INTRO_CONTENT['solo'];
-  const taglineEl = document.getElementById('gameIntroTagline');
-  if (taglineEl) taglineEl.innerText = content.tagline;
-  renderIntroIllustration(content.kind);
-  const skipBtn = document.getElementById('introSkipBtn');
-  if (skipBtn) { skipBtn.innerText = 'Skip ⏭'; skipBtn.classList.remove('done'); }
-
-  let secondsLeft = 10;
-  const countdownEl = document.getElementById('introCountdownVal');
-  if (countdownEl) countdownEl.innerText = secondsLeft;
-  clearInterval(introCountdownTimer);
-  introCountdownTimer = setInterval(() => {
-    secondsLeft--;
-    if (countdownEl) countdownEl.innerText = Math.max(0, secondsLeft);
-    if (secondsLeft <= 0) dismissGameIntro();
-  }, 1000);
-
-  const overlay = document.getElementById('gameIntroOverlay');
-  if (!overlay) { debugLog('showGameIntro(): #gameIntroOverlay NOT FOUND IN DOM!', true); return; }
-  overlay.classList.add('active');
-  debugLog('showGameIntro(): overlay .active class added, classList=' + overlay.className);
-}
-
-function dismissGameIntro() {
-  if (introDismissed) return;
-  introDismissed = true;
-  clearInterval(introCountdownTimer);
-  const overlay = document.getElementById('gameIntroOverlay');
-  if (overlay) overlay.classList.remove('active');
-}
-
-function tapIntroSkip() {
-  introSkipLocal = true;
-  if (!isRealMultiplayerSession()) { dismissGameIntro(); return; }
-  try { if (conn && conn.open) conn.send({ type: 'SKIP_INTRO' }); } catch (e) {}
-  if (introSkipRemote) { dismissGameIntro(); return; }
-  const skipBtn = document.getElementById('introSkipBtn');
-  if (skipBtn) { skipBtn.innerText = 'Waiting…'; skipBtn.classList.add('done'); }
-}
-function receiveRemoteSkip() {
-  introSkipRemote = true;
-  if (introSkipLocal) dismissGameIntro();
-}
 
 function enterSoloTestMode() {
   resetConnectionState();
   isSoloTestMode = true;
   myRole = 'P1';
+  createPhysicsWorker();
+  document.getElementById('lobbyOverlay').classList.remove('active');
   document.getElementById('p1Title').innerText = 'Player 1 (Test)';
   document.getElementById('p2Title').innerText = 'Player 2 (Test)';
-  try {
-    createPhysicsWorker();
-    physicsWorker.postMessage({ type: 'INIT' });
-  } catch (e) {
-    console.error('Failed to start physics worker:', e);
-  }
-  revealGameplayWithIntro('solo');
+  physicsWorker.postMessage({ type: 'INIT' });
 }
 
 // 99：單人玩雙邊，測試三種雙人模式的完整規則（回合、倒數、勝負判定都跟真連線一樣，
 // 只是兩邊都自己操作）。畫面顯示正常的 Player 1 / Player 2，不加 (Test) 字樣。
 function showBothSidesModePicker() {
-  debugLog('showBothSidesModePicker(): rendering 3-mode picker into #connectPanel');
   const panel = document.getElementById('connectPanel');
-  if (!panel) { debugLog('showBothSidesModePicker(): #connectPanel NOT FOUND!', true); return; }
   panel.className = 'connect-panel has-content';
   panel.innerHTML = `
     <div style="font-size:0.72rem; color:#a8a29e;">Solo (Both Sides) — pick a mode to test</div>
     <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
-      <button class="btn-restart" style="background:#4f46e5;" data-action="enterSoloBothSidesMode:coop">Team Up</button>
-      <button class="btn-restart" style="background:#4f46e5;" data-action="enterSoloBothSidesMode:pvp-drops">Versus</button>
-      <button class="btn-restart" style="background:#4f46e5;" data-action="enterSoloBothSidesMode:pvp-score">Topple</button>
+      <button class="btn-restart" style="background:#4f46e5;" onclick="enterSoloBothSidesMode('coop')">Team Up</button>
+      <button class="btn-restart" style="background:#4f46e5;" onclick="enterSoloBothSidesMode('pvp-drops')">Versus</button>
+      <button class="btn-restart" style="background:#4f46e5;" onclick="enterSoloBothSidesMode('pvp-score')">Topple</button>
     </div>
-    <button class="btn-cancel" style="margin-top:8px;" data-action="renderConnectPanelNull">Cancel</button>
+    <button class="btn-cancel" style="margin-top:8px;" onclick="renderConnectPanel(null)">Cancel</button>
   `;
-  debugLog('showBothSidesModePicker(): picker rendered, panel className=' + panel.className);
 }
 function enterSoloBothSidesMode(mode) {
-  debugLog('enterSoloBothSidesMode(' + mode + '): clicked');
   resetConnectionState();
   isSoloTestMode = true; // 沿用「輪到誰、輸入就直接控制誰」的既有機制
   myRole = 'P1';
+  createPhysicsWorker();
+  document.getElementById('lobbyOverlay').classList.remove('active');
   document.getElementById('p1Title').innerText = 'Player 1';
   document.getElementById('p2Title').innerText = 'Player 2';
-  try {
-    createPhysicsWorker();
-    physicsWorker.postMessage({ type: 'INIT', mode });
-  } catch (e) {
-    debugLog('enterSoloBothSidesMode(): worker failed: ' + e.message, true);
-  }
-  revealGameplayWithIntro(mode);
+  physicsWorker.postMessage({ type: 'INIT', mode });
 }
 
 // 98：多數值測試模式。用 1 人模式開局，並顯示左上角的 🧪 按鈕，可隨時開關全螢幕調參面板。
 function enterDebugTuningMode() {
-  debugLog('enterDebugTuningMode(): clicked');
   startSoloChallenge();
   const btn = document.getElementById('debugToggleBtn');
   if (btn) btn.classList.add('debug-available');
@@ -1745,7 +1390,6 @@ function enterDebugTuningMode() {
 }
 
 function joinRoom() {
-  debugLog('joinRoom(): clicked, input value = "' + document.getElementById('roomInput').value + '"');
   document.activeElement.blur();
   const targetId = document.getElementById('roomInput').value.trim();
   if (targetId === '12345') { enterSoloTestMode(); return; }
@@ -1755,26 +1399,16 @@ function joinRoom() {
   if (!/^[0-9]$/.test(targetId)) return alert('Room ID must be a single digit (0-9). (98/99 are local test modes.)');
 
   resetConnectionState(); 
+  peer = new Peer();
   myRole = 'P2';
   document.getElementById('lobbyStatus').innerText = 'Connecting...';
-  try {
-    peer = new Peer();
-    debugLog('joinRoom(): Peer constructed');
-  } catch (e) {
-    debugLog('joinRoom(): Peer construction FAILED: ' + e.message, true);
-    alert('Connection failed to initialize. Your browser/network may be blocking it.');
-    document.getElementById('lobbyStatus').innerText = 'Failed to connect. Try again.';
-    return;
-  }
 
   peer.on('open', () => {
-    debugLog('joinRoom(): peer open, connecting to room ' + targetId);
     conn = peer.connect(ROOM_ID_PREFIX + targetId, { reliable: true });
     setupConnection();
   });
 
   peer.on('error', (err) => {
-    debugLog('joinRoom(): peer error: ' + (err && err.message ? err.message : err), true);
     alert('Connection failed. Check Room ID.');
     document.getElementById('lobbyStatus').innerText = 'Failed to connect. Try again.';
   });
@@ -1783,6 +1417,7 @@ function joinRoom() {
 function setupConnection() {
   conn.on('open', () => {
     if (document.activeElement) document.activeElement.blur();
+    document.getElementById('lobbyOverlay').classList.remove('active');
     document.getElementById('p1Title').innerText = myRole === 'P1' ? 'Player 1 (You)' : 'Player 1';
     document.getElementById('p2Title').innerText = myRole === 'P2' ? 'Player 2 (You)' : 'Player 2';
     if (myRole === 'P2') document.getElementById('btnRestart').style.display = 'none';
@@ -1798,7 +1433,6 @@ function setupConnection() {
 
   conn.on('data', (data) => {
     try {
-      if (data.type === 'SKIP_INTRO') { receiveRemoteSkip(); return; }
       if (myRole === 'P1') {
         if (data.type === 'KEY_INPUT' && currentPlayer === 2 && physicsWorker) {
           physicsWorker.postMessage({ type: 'KEY', key: data.key });
@@ -1878,7 +1512,6 @@ function applySyncedState(state) {
   playerTimeoutStrikes = state.playerTimeoutStrikes || { 1: 0, 2: 0 };
   remoteBodies = state.bodies;
   prevSnapshot = currSnapshot;
-  if (myRole === 'P2' && !p2IntroShown) { p2IntroShown = true; revealGameplayWithIntro(gameMode); }
   currSnapshot = { time: performance.now(), bodies: state.bodies };
   updateUI(); renderHandCards();
   if (gameState === 'GAME_OVER') showModal(state.modalTitle, state.modalDesc);
@@ -2089,16 +1722,25 @@ function toggleFullScreen() {
   }
 }
 
-// ============ 手機版面：現在只有直式，橫式已完全移除 ============
+// ============ 手機直式 / 橫式 UI 佈局切換 ============
+// 預設依視窗寬高自動判斷；按下按鈕後改為手動模式，不再被自動偵測覆蓋。
+let layoutManualOverride = false;
 function isMobileLayoutActive() { return window.innerWidth <= 900 || window.innerHeight <= 700; }
 
 function autoDetectLayout() {
-  document.body.setAttribute('data-layout', 'portrait');
+  if (layoutManualOverride) return;
+  document.body.setAttribute('data-layout', window.innerWidth >= window.innerHeight ? 'landscape' : 'portrait');
 }
-// 「⤢」鈕現在純粹是 UI 位置輔助工具：短按 = 重設操作按鈕到預設位置；長按拖曳 = 手動調整（見下方）。
 function toggleOrientationLayout() {
-  saveControlsOffset(0);
-  applyControlsOffset(0);
+  layoutManualOverride = true;
+  const next = document.body.getAttribute('data-layout') === 'landscape' ? 'portrait' : 'landscape';
+  document.body.setAttribute('data-layout', next);
+  requestAnimationFrame(() => {
+    fitGameContainer();
+    applyControlsOffset(loadControlsOffset());
+    positionHandRow();
+    refreshPageOffset();
+  });
 }
 
 // ============ 操作按鈕上下拖曳調整（長按「直橫式切換」鈕進入拖曳模式）============
@@ -2123,10 +1765,17 @@ function applyControlsOffset(px) {
   if (right) right.style.transform = t;
 }
 
-// 計算按鈕最多可以往上/往下移動到哪裡：
-// 上緣不可超出螢幕頂端；下緣不可超過「起始位置」(貼著 P1/P2 資訊上方)。
+// 計算目前版面下，按鈕最多可以往上/往下移動到哪裡：
+// 上緣不可超出螢幕頂端；下緣直式時不可超過「起始位置」(貼著 P1/P2 資訊上方)，橫式時不可超出螢幕底部。
 // 遊玩區、五選三手牌本身則不設限，允許被按鈕蓋住（手牌 z-index 較高，仍會顯示在按鈕上方）。
 function computeControlsDragBounds(naturalTop, naturalBottom) {
+  const layout = document.body.getAttribute('data-layout') || 'portrait';
+  if (layout === 'landscape') {
+    const topBar = document.getElementById('top-players-container');
+    const topLimit = topBar ? topBar.getBoundingClientRect().bottom + 4 : 4;
+    const bottomLimit = window.innerHeight - 4;
+    return { topLimit, bottomLimit };
+  }
   const topLimit = 4;
   const bottomLimit = naturalBottom; // 起始位置已貼著 P1/P2 資訊上方，不可再往下
   return { topLimit, bottomLimit };
@@ -2295,9 +1944,11 @@ function fitGameContainer() {
     return;
   }
 
+  const isLandscape = document.body.getAttribute('data-layout') === 'landscape';
   const sideMargin = 16; // 保留左右可見邊距，避免遊玩區直接頂到螢幕最左最右
+  const topMargin = isLandscape ? 46 : 0; // 橫式頂部疊了玩家資訊/手牌橫帶，需預留空間避免重疊
   const availW = panel.clientWidth - sideMargin * 2;
-  const availH = panel.clientHeight;
+  const availH = panel.clientHeight - topMargin;
   if (availW <= 0 || availH <= 0) return;
 
   let w = availH * GAME_RATIO;
@@ -2405,16 +2056,8 @@ function drawFrame() {
   }
 }
 
-let renderLoopErrorLogged = false;
 function renderLoop() {
-  try {
-    drawFrame();
-  } catch (e) {
-    if (!renderLoopErrorLogged) {
-      renderLoopErrorLogged = true;
-      debugLog('renderLoop/drawFrame threw (further repeats suppressed): ' + e.message, true);
-    }
-  }
+  drawFrame();
   requestAnimationFrame(renderLoop);
 }
 
