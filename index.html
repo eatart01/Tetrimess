@@ -413,6 +413,15 @@
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
+  <!-- ===== 終極診斷用：不用點任何東西，一打開頁面就能看到結果 ===== -->
+  <div id="ultimateDiagBanner" style="position:fixed; top:0; left:0; right:0; z-index:99999; background:#000; color:#0f0; font-family:monospace; font-size:10px; line-height:1.4; padding:5px 6px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; border-bottom:2px solid #0f0;">
+    <span id="diagScriptStatus">JS: loading...</span>
+    <span id="diagTapCount">Pointerdown: 0</span>
+    <span id="diagClickCount">Click: 0</span>
+    <span onclick="document.getElementById('diagRawOnclick').innerText='RAW ONCLICK: FIRED!'" style="background:#144d14;padding:2px 8px;border-radius:4px;">TAP THIS BOX</span>
+    <span id="diagRawOnclick">RAW ONCLICK: not yet</span>
+  </div>
+  <div style="height:34px;"></div>
 
   <!-- Lobby Modal -->
   <div id="lobbyOverlay" class="modal-overlay active">
@@ -694,6 +703,21 @@ window.addEventListener('unhandledrejection', function (e) {
   debugLog('PROMISE REJECTED: ' + (e.reason && e.reason.message ? e.reason.message : e.reason), true);
 });
 debugLog('Page script started loading.');
+(function () {
+  const statusEl = document.getElementById('diagScriptStatus');
+  if (statusEl) statusEl.innerText = 'JS: OK, running';
+  let tapCount = 0, clickCount = 0;
+  document.addEventListener('pointerdown', function () {
+    tapCount++;
+    const el = document.getElementById('diagTapCount');
+    if (el) el.innerText = 'Pointerdown: ' + tapCount;
+  }, true);
+  document.addEventListener('click', function () {
+    clickCount++;
+    const el = document.getElementById('diagClickCount');
+    if (el) el.innerText = 'Click: ' + clickCount;
+  }, true);
+})();
 
 const WORKER_SOURCE = `
   try {
@@ -2053,36 +2077,4 @@ function onOrientationPointerDown(e) {
     if (controlsDragMax < controlsDragMin) controlsDragMax = controlsDragMin;
     const btn = document.getElementById('mc-orientation');
     if (btn) btn.classList.add('dragging');
-    if (navigator.vibrate) { try { navigator.vibrate(15); } catch (err) {} }
-  }, CONTROLS_LONG_PRESS_MS);
-  const btn = document.getElementById('mc-orientation');
-  if (btn && btn.setPointerCapture) { try { btn.setPointerCapture(e.pointerId); } catch (err) {} }
-}
-function onOrientationPointerMove(e) {
-  if (!controlsDragActive) return;
-  e.preventDefault();
-  const delta = e.clientY - controlsDragStartY;
-  const next = Math.max(controlsDragMin, Math.min(controlsDragMax, controlsDragBaseOffset + delta));
-  applyControlsOffset(next);
-}
-function onOrientationPointerUp(e) {
-  clearTimeout(controlsPressTimer);
-  const btn = document.getElementById('mc-orientation');
-  if (controlsDragActive) {
-    const delta = e.clientY - controlsDragStartY;
-    const finalOffset = Math.max(controlsDragMin, Math.min(controlsDragMax, controlsDragBaseOffset + delta));
-    applyControlsOffset(finalOffset);
-    saveControlsOffset(finalOffset);
-    if (btn) btn.classList.remove('dragging');
-  } else {
-    toggleOrientationLayout();
-  }
-  controlsDragActive = false;
-}
-(function bindOrientationDrag() {
-  const btn = document.getElementById('mc-orientation');
-  if (!btn) return;
-  btn.addEventListener('pointerdown', onOrientationPointerDown);
-  btn.addEventListener('pointermove', onOrientationPointerMove);
-  btn.addEventListener('pointerup', onOrientationPointerUp);
-  btn.addEventList
+    if (navigator.vibrate) { try { navigator.vibrate(
