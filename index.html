@@ -413,17 +413,36 @@
     }
   }
 
-  function handleAction(action) {
+  function handleAction(action, el) {
     if (!action) return false;
 
     if (action === 'startSoloChallenge') return callGameFunction('startSoloChallenge');
     if (action === 'openHowToPlay') return callGameFunction('openHowToPlay');
+    if (action === 'closeHowToPlay') return callGameFunction('closeHowToPlay');
     if (action === 'tapIntroSkip') return callGameFunction('tapIntroSkip');
-    if (action === 'htpPrev') return callGameFunction('htpPrev');
-    if (action === 'htpNext') return callGameFunction('htpNext');
+    if (action === 'htpPrev') return callGameFunction('htpGoPrev');
+    if (action === 'htpNext') return callGameFunction('htpGoNext');
+    if (action === 'joinRoom') return callGameFunction('joinRoom');
+    if (action === 'resetGame') return callGameFunction('resetGame');
+    if (action === 'toggleOrientationLayout') return callGameFunction('toggleOrientationLayout');
+    if (action === 'toggleFullScreen') return callGameFunction('toggleFullScreen');
+    if (action === 'toggleDebugPanel') return callGameFunction('toggleDebugPanel');
+    if (action === 'toggleDebugForceShape') return callGameFunction('toggleDebugForceShape');
+    if (action === 'resetDebugDefaults') return callGameFunction('resetDebugDefaults');
+    if (action === 'copyCurrentRoomId') return callGameFunction('copyCurrentRoomId');
+    if (action === 'cancelRoomCreation') return callGameFunction('cancelRoomCreation');
 
     if (action.indexOf('selectRoomMode:') === 0) {
-      return callGameFunction('selectRoomMode', [action.split(':')[1]]);
+      return callGameFunction('selectRoomMode', [action.split(':')[1], el]);
+    }
+    if (action.indexOf('selectDebugShape:') === 0) {
+      return callGameFunction('selectDebugShape', [action.split(':')[1]]);
+    }
+    if (action.indexOf('enterSoloBothSidesMode:') === 0) {
+      return callGameFunction('enterSoloBothSidesMode', [action.split(':')[1]]);
+    }
+    if (action === 'renderConnectPanel:null') {
+      return callGameFunction('renderConnectPanel', [null]);
     }
     return false;
   }
@@ -440,7 +459,7 @@
 
       event.preventDefault();
       event.stopPropagation();
-      handleAction(el.getAttribute('data-action'));
+      handleAction(el.getAttribute('data-action'), el);
     }, true);
 
     document.addEventListener('touchend', function (event) {
@@ -451,7 +470,7 @@
 
       event.preventDefault();
       event.stopPropagation();
-      handleAction(el.getAttribute('data-action'));
+      handleAction(el.getAttribute('data-action'), el);
     }, { capture: true, passive: false });
 
     console.log('[UI Bridge] installed');
@@ -503,21 +522,21 @@
       <div class="mode-substack-wrap">
         <div class="mode-substack-title">Make Room (P1)</div>
         <div class="mode-substack" id="modeSubstack">
-          <button class="mode-card c-t" data-mode="coop" onclick="selectRoomMode('coop', this)">
+          <button class="mode-card c-t" data-mode="coop" data-action="selectRoomMode:coop">
             <div class="mode-icon-blocks" id="iconCoop"></div>
             <div class="mode-text">
               <div class="mode-name">2 Players: Team Up</div>
               <div class="mode-sub">Work together. Reach the line to win!</div>
             </div>
           </button>
-          <button class="mode-card c-o" data-mode="pvp-drops" onclick="selectRoomMode('pvp-drops', this)">
+          <button class="mode-card c-o" data-mode="pvp-drops" data-action="selectRoomMode:pvp-drops">
             <div class="mode-icon-blocks" id="iconPvpDrops"></div>
             <div class="mode-text">
               <div class="mode-name">2 Players: Versus</div>
               <div class="mode-sub">First to drop 11 blocks loses.</div>
             </div>
           </button>
-          <button class="mode-card c-z" data-mode="pvp-score" onclick="selectRoomMode('pvp-score', this)">
+          <button class="mode-card c-z" data-mode="pvp-score" data-action="selectRoomMode:pvp-score">
             <div class="mode-icon-blocks" id="iconPvpScore"></div>
             <div class="mode-text">
               <div class="mode-name">2 Players: Topple</div>
@@ -535,7 +554,7 @@
 
     <div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:24px;">
       <input type="text" id="roomInput" class="room-input" placeholder="0-9" maxlength="2" inputmode="numeric" pattern="[0-9]{1,2}">
-      <button class="btn-restart" style="background:#059669;" onclick="joinRoom()">Join Room (P2)</button>
+      <button class="btn-restart" style="background:#059669;" data-action="joinRoom">Join Room (P2)</button>
     </div>
 
     <div class="modal-desc" id="lobbyStatus" style="margin-top:16px;"></div>
@@ -573,7 +592,7 @@
         <div id="modalOverlay" class="modal-overlay">
           <div id="modalTitle" class="modal-title">P1 Wins!</div>
           <div id="modalDesc" class="modal-desc">P2 dropped too many blocks.</div>
-          <button class="btn-restart" id="btnRestart" onclick="resetGame()">Play Again</button>
+          <button class="btn-restart" id="btnRestart" data-action="resetGame">Play Again</button>
         </div>
       </div>
 
@@ -612,12 +631,12 @@
 
   <!-- 右下角微型工具按鈕：直橫式切換 / 全螢幕 (手機模式下已整合進主控制區，此處僅供桌面/備用) -->
   <div id="floating-tools">
-    <div class="float-btn" onclick="toggleOrientationLayout()" title="切換直式/橫式">⤢</div>
-    <div class="float-btn" onclick="toggleFullScreen()" title="全螢幕">🔲</div>
+    <div class="float-btn" data-action="toggleOrientationLayout" title="切換直式/橫式">⤢</div>
+    <div class="float-btn" data-action="toggleFullScreen" title="全螢幕">🔲</div>
   </div>
 
   <!-- 98：多數值測試模式。單一按鈕開/關，面板一律全螢幕顯示，不會跟任何遊戲版面重疊 -->
-  <div id="debugToggleBtn" onclick="toggleDebugPanel()" title="數值測試面板">🧪</div>
+  <div id="debugToggleBtn" data-action="toggleDebugPanel" title="數值測試面板">🧪</div>
   <div id="debugPanel"></div>
 
   <!-- 開局前 10 秒過場說明畫面 -->
@@ -627,12 +646,12 @@
       <div class="intro-illust-box" id="gameIntroIllustration"></div>
       <div class="game-intro-tagline" id="gameIntroTagline">Reach the Line</div>
     </div>
-    <div class="game-intro-skip" id="introSkipBtn" onclick="tapIntroSkip()">Skip ⏭</div>
+    <div class="game-intro-skip" id="introSkipBtn" data-action="tapIntroSkip">Skip ⏭</div>
   </div>
 
   <div id="howToPlayOverlay">
     <div class="htp-modal">
-      <div class="htp-close" onclick="closeHowToPlay()">✕</div>
+      <div class="htp-close" data-action="closeHowToPlay">✕</div>
       <div class="htp-body">
 
         <div class="htp-page active" data-page="1">
@@ -694,13 +713,13 @@
 
       </div>
       <div class="htp-nav">
-        <div class="htp-nav-btn" id="htpPrevBtn" onclick="htpGoPrev()">‹ Prev</div>
+        <div class="htp-nav-btn" id="htpPrevBtn" data-action="htpPrev">‹ Prev</div>
         <div class="htp-dots">
           <span class="htp-dot active" data-dot="1"></span>
           <span class="htp-dot" data-dot="2"></span>
           <span class="htp-dot" data-dot="3"></span>
         </div>
-        <div class="htp-nav-btn" id="htpNextBtn" onclick="htpGoNext()">Next ›</div>
+        <div class="htp-nav-btn" id="htpNextBtn" data-action="htpNext">Next ›</div>
       </div>
     </div>
   </div>
@@ -1161,7 +1180,7 @@ function buildDebugPanel() {
 
   const shapeButtonsHtml = DEBUG_SHAPES.map(s => `
     <div class="debug-shape-btn${s.name === debugForcedShapeName ? ' selected' : ''}"
-         id="dbgShapeBtn-${s.name}" onclick="selectDebugShape('${s.name}')">${s.name}</div>`).join('');
+         id="dbgShapeBtn-${s.name}" data-action="selectDebugShape:${s.name}">${s.name}</div>`).join('');
 
   panel.innerHTML = `
     <div class="debug-panel-inner">
@@ -1172,12 +1191,12 @@ function buildDebugPanel() {
       ${rowsHtml}
 
       <div class="debug-section-title">Force Specific Shape</div>
-      <div id="dbgForceShapeToggle" class="debug-toggle-btn" onclick="toggleDebugForceShape()">Forcing: OFF</div>
+      <div id="dbgForceShapeToggle" class="debug-toggle-btn" data-action="toggleDebugForceShape">Forcing: OFF</div>
       <div class="debug-shape-grid">${shapeButtonsHtml}</div>
 
       <div class="debug-actions">
-        <button class="btn-restart" style="background:#3f3f46;" onclick="resetDebugDefaults()">Reset Defaults</button>
-        <button class="btn-restart" style="background:#4f46e5;" onclick="toggleDebugPanel()">Close</button>
+        <button class="btn-restart" style="background:#3f3f46;" data-action="resetDebugDefaults">Reset Defaults</button>
+        <button class="btn-restart" style="background:#4f46e5;" data-action="toggleDebugPanel">Close</button>
       </div>
     </div>
   `;
@@ -1397,9 +1416,9 @@ function renderConnectPanel(mode, code) {
     <div style="color:#e2e8f0; font-weight:700; font-size:0.85rem;">${MODE_NAMES[mode]}</div>
     <div style="font-size:0.72rem; color:#a8a29e; margin-top:4px;">Room ID</div>
     <div class="code-text" id="connectCodeText">${code || 'Connecting...'}</div>
-    <button id="copyBtn" class="btn-copy" onclick="copyCurrentRoomId()">📋 Copy ID</button>
+    <button id="copyBtn" class="btn-copy" data-action="copyCurrentRoomId">📋 Copy ID</button>
     <div class="waiting-text">Waiting for friend...</div>
-    <button class="btn-cancel" onclick="cancelRoomCreation()">Cancel</button>
+    <button class="btn-cancel" data-action="cancelRoomCreation">Cancel</button>
   `;
 }
 
@@ -1615,11 +1634,11 @@ function showBothSidesModePicker() {
   panel.innerHTML = `
     <div style="font-size:0.72rem; color:#a8a29e;">Solo (Both Sides) — pick a mode to test</div>
     <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
-      <button class="btn-restart" style="background:#4f46e5;" onclick="enterSoloBothSidesMode('coop')">Team Up</button>
-      <button class="btn-restart" style="background:#4f46e5;" onclick="enterSoloBothSidesMode('pvp-drops')">Versus</button>
-      <button class="btn-restart" style="background:#4f46e5;" onclick="enterSoloBothSidesMode('pvp-score')">Topple</button>
+      <button class="btn-restart" style="background:#4f46e5;" data-action="enterSoloBothSidesMode:coop">Team Up</button>
+      <button class="btn-restart" style="background:#4f46e5;" data-action="enterSoloBothSidesMode:pvp-drops">Versus</button>
+      <button class="btn-restart" style="background:#4f46e5;" data-action="enterSoloBothSidesMode:pvp-score">Topple</button>
     </div>
-    <button class="btn-cancel" style="margin-top:8px;" onclick="renderConnectPanel(null)">Cancel</button>
+    <button class="btn-cancel" style="margin-top:8px;" data-action="renderConnectPanel:null">Cancel</button>
   `;
   debugLog('showBothSidesModePicker(): picker rendered, panel className=' + panel.className);
 }
@@ -2093,33 +2112,4 @@ function onOrientationPointerUp(e) {
   controlsDragActive = false;
 }
 (function bindOrientationDrag() {
-  const btn = document.getElementById('mc-orientation');
-  if (!btn) return;
-  btn.addEventListener('pointerdown', onOrientationPointerDown);
-  btn.addEventListener('pointermove', onOrientationPointerMove);
-  btn.addEventListener('pointerup', onOrientationPointerUp);
-  btn.addEventListener('pointercancel', onOrientationPointerUp);
-  btn.addEventListener('contextmenu', e => e.preventDefault());
-})();
-
-// ============ 遊玩區＋選方塊區 上下拖曳調整（僅限手機直式，長按「全螢幕」鈕）============
-// 短按：跟以前一樣，正常切換全螢幕。
-// 長按 350ms 後上下拖動：只有「遊玩區（畫布）」和「五選三選方塊區」兩者一起垂直移動，
-// 操作按鈕區、P1/P2 資訊完全不受影響、不會跟著動。
-// 放開後記住位置（存在 localStorage，下次打開自動套用）。用來補償不同手機「遊玩區沒有真的頂到最上方」的顯示差異。
-// 只在直式模式生效；橫式時此按鈕維持單純的全螢幕開關，不會觸發拖曳。
-const PAGE_OFFSET_KEY = 'tetrimess-page-offset-portrait';
-function loadPageOffset() {
-  try { const v = localStorage.getItem(PAGE_OFFSET_KEY); return v ? parseFloat(v) : 0; } catch (e) { return 0; }
-}
-function savePageOffset(px) {
-  try { localStorage.setItem(PAGE_OFFSET_KEY, String(px)); } catch (e) {}
-}
-function applyPageOffset(px) {
-  const box = document.querySelector('.game-container');
-  const hand = document.querySelector('.hand-container-vertical');
-  const t = px ? `translateY(${px}px)` : '';
-  if (box) box.style.transform = t;
-  if (hand) hand.style.transform = t;
-}
-function refreshPageO
+  
