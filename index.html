@@ -647,9 +647,23 @@
 <script>
 // ===== 暫時性診斷用：左下角按鈕開/關一個執行紀錄面板，記錄關鍵步驟跟錯誤 =====
 let debugLogEntries = [];
+let debugLogLastMsg = '';
+let debugLogRepeatCount = 0;
 function debugLog(msg, isError) {
+  msg = String(msg);
+  if (msg === debugLogLastMsg) {
+    debugLogRepeatCount++;
+    if (debugLogRepeatCount > 3) {
+      // 同一則訊息短時間內重複太多次（例如迴圈裡持續報錯），只更新最後一筆的次數，不再整批塞新的 DOM 節點
+      const last = debugLogEntries[debugLogEntries.length - 1];
+      if (last) { last.msg = msg + '  (x' + debugLogRepeatCount + ')'; renderDebugLog(); return; }
+    }
+  } else {
+    debugLogLastMsg = msg;
+    debugLogRepeatCount = 1;
+  }
   const time = new Date().toTimeString().slice(0, 8);
-  debugLogEntries.push({ time, msg: String(msg), isError: !!isError });
+  debugLogEntries.push({ time, msg, isError: !!isError });
   if (debugLogEntries.length > 400) debugLogEntries.shift();
   renderDebugLog();
   try { console.log('[LOG]', msg); } catch (e) {}
@@ -2071,15 +2085,4 @@ function onOrientationPointerUp(e) {
   btn.addEventListener('pointerdown', onOrientationPointerDown);
   btn.addEventListener('pointermove', onOrientationPointerMove);
   btn.addEventListener('pointerup', onOrientationPointerUp);
-  btn.addEventListener('pointercancel', onOrientationPointerUp);
-  btn.addEventListener('contextmenu', e => e.preventDefault());
-})();
-
-// ============ 遊玩區＋選方塊區 上下拖曳調整（僅限手機直式，長按「全螢幕」鈕）============
-// 短按：跟以前一樣，正常切換全螢幕。
-// 長按 350ms 後上下拖動：只有「遊玩區（畫布）」和「五選三選方塊區」兩者一起垂直移動，
-// 操作按鈕區、P1/P2 資訊完全不受影響、不會跟著動。
-// 放開後記住位置（存在 localStorage，下次打開自動套用）。用來補償不同手機「遊玩區沒有真的頂到最上方」的顯示差異。
-// 只在直式模式生效；橫式時此按鈕維持單純的全螢幕開關，不會觸發拖曳。
-const PAGE_OFFSET_KEY = 'tetrimess-page-offset-portrait';
-function loadPageO
+  btn.addEventList
