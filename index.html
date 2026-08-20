@@ -410,26 +410,118 @@
       .htp-nav-btn { font-size: 0.92rem; padding: 11px 16px; }
     }
   </style>
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  
+<script>
+/*
+ * Browser-safe UI event bridge.
+ * The original game used inline onclick handlers. This bridge binds the
+ * critical UI through addEventListener/delegation so normal mobile browsers
+ * do not depend on inline event-handler execution.
+ */
+(function () {
+  'use strict';
+
+  window.__uiBridgeBooted = false;
+
+  function callGameFunction(name, args) {
+    try {
+      var fn = window[name];
+      if (typeof fn !== 'function') {
+        console.error('[UI Bridge] Missing function:', name);
+        return false;
+      }
+      fn.apply(window, args || []);
+      return true;
+    } catch (err) {
+      console.error('[UI Bridge] ' + name + ' failed:', err);
+      return false;
+    }
+  }
+
+  function handleAction(action, el) {
+    if (!action) return false;
+    const sep = action.indexOf(':');
+    const name = sep === -1 ? action : action.slice(0, sep);
+    const arg = sep === -1 ? undefined : action.slice(sep + 1);
+
+    switch (name) {
+      case 'toggleDebugLog': return callGameFunction('toggleDebugLog');
+      case 'startSoloChallenge': return callGameFunction('startSoloChallenge');
+      case 'openHowToPlay': return callGameFunction('openHowToPlay');
+      case 'closeHowToPlay': return callGameFunction('closeHowToPlay');
+      case 'tapIntroSkip': return callGameFunction('tapIntroSkip');
+      case 'htpGoPrev': return callGameFunction('htpGoPrev');
+      case 'htpGoNext': return callGameFunction('htpGoNext');
+      case 'joinRoom': return callGameFunction('joinRoom');
+      case 'resetGame': return callGameFunction('resetGame');
+      case 'toggleOrientationLayout': return callGameFunction('toggleOrientationLayout');
+      case 'toggleFullScreen': return callGameFunction('toggleFullScreen');
+      case 'clearDebugLog': return callGameFunction('clearDebugLog');
+      case 'toggleDebugPanel': return callGameFunction('toggleDebugPanel');
+      case 'toggleDebugForceShape': return callGameFunction('toggleDebugForceShape');
+      case 'resetDebugDefaults': return callGameFunction('resetDebugDefaults');
+      case 'copyCurrentRoomId': return callGameFunction('copyCurrentRoomId');
+      case 'cancelRoomCreation': return callGameFunction('cancelRoomCreation');
+      case 'renderConnectPanelNull': return callGameFunction('renderConnectPanel', [null]);
+      case 'selectRoomMode': return callGameFunction('selectRoomMode', [arg, el]);
+      case 'enterSoloBothSidesMode': return callGameFunction('enterSoloBothSidesMode', [arg]);
+      case 'selectDebugShape': return callGameFunction('selectDebugShape', [arg]);
+    }
+    return false;
+  }
+
+  function bind() {
+    if (window.__uiBridgeBooted) return;
+    window.__uiBridgeBooted = true;
+
+    document.addEventListener('click', function (event) {
+      var el = event.target && event.target.closest
+        ? event.target.closest('[data-action]')
+        : null;
+      if (!el) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      handleAction(el.getAttribute('data-action'), el);
+    }, true);
+
+    document.addEventListener('touchend', function (event) {
+      var el = event.target && event.target.closest
+        ? event.target.closest('[data-action]')
+        : null;
+      if (!el) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      handleAction(el.getAttribute('data-action'), el);
+    }, { capture: true, passive: false });
+
+    console.log('[UI Bridge] installed');
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bind, { once: true });
+  } else {
+    bind();
+  }
+})();
+</script>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
+<style id="mobile-ui-event-fix">
+  #debugLogToggleBtn,
+  #introSkipBtn,
+  #htpPrevBtn,
+  #htpNextBtn,
+  [data-action] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+</style>
+
 </head>
 <body>
-  <!-- ===== 終極診斷用：不用點任何東西，一打開頁面就能看到結果 ===== -->
-  <div id="ultimateDiagBanner" style="position:fixed; top:0; left:0; right:0; z-index:99999; background:#000; color:#0f0; font-family:monospace; font-size:10px; line-height:1.4; padding:5px 6px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; border-bottom:2px solid #0f0;">
-    <span id="diagScriptStatus">JS: loading...</span>
-    <span id="diagEarlyStatus">Early script: not yet</span>
-    <span id="diagTapCount">Pointerdown: 0</span>
-    <span id="diagClickCount">Click: 0</span>
-    <span onclick="document.getElementById('diagRawOnclick').innerText='RAW ONCLICK: FIRED!'" style="background:#144d14;padding:2px 8px;border-radius:4px;">TAP THIS BOX</span>
-    <span id="diagRawOnclick">RAW ONCLICK: not yet</span>
-  </div>
-  <script>
-    try {
-      document.getElementById('diagEarlyStatus').innerText = 'Early script: OK';
-    } catch (e) {
-      document.getElementById('diagEarlyStatus').innerText = 'Early script: ERR ' + e.message;
-    }
-  </script>
-  <div style="height:34px;"></div>
 
   <!-- Lobby Modal -->
   <div id="lobbyOverlay" class="modal-overlay active">
@@ -439,12 +531,12 @@
     <div class="lobby-row">
       <div class="mode-substack-wrap" id="soloColumnWrap">
         <div class="mode-substack-title" style="visibility:hidden;">Make Room (P1)</div>
-        <button class="mode-card c-i" onclick="startSoloChallenge()">
+        <button class="mode-card c-i" data-action="startSoloChallenge">
           <div class="mode-icon-blocks" id="iconSolo"></div>
           <div class="mode-name">1 Player Mode</div>
           <div class="mode-sub">Play alone. Reach the line to win!</div>
         </button>
-        <button class="mode-card how-to-play-btn" onclick="openHowToPlay()">
+        <button class="mode-card how-to-play-btn" data-action="openHowToPlay">
           <div class="mode-icon-blocks" style="color:#cbbe93; font-weight:800;">?</div>
           <div class="mode-name">How to Play</div>
           <div class="mode-sub">Rules for every mode</div>
@@ -454,21 +546,21 @@
       <div class="mode-substack-wrap">
         <div class="mode-substack-title">Make Room (P1)</div>
         <div class="mode-substack" id="modeSubstack">
-          <button class="mode-card c-t" data-mode="coop" onclick="selectRoomMode('coop', this)">
+          <button class="mode-card c-t" data-mode="coop" data-action="selectRoomMode:coop">
             <div class="mode-icon-blocks" id="iconCoop"></div>
             <div class="mode-text">
               <div class="mode-name">2 Players: Team Up</div>
               <div class="mode-sub">Work together. Reach the line to win!</div>
             </div>
           </button>
-          <button class="mode-card c-o" data-mode="pvp-drops" onclick="selectRoomMode('pvp-drops', this)">
+          <button class="mode-card c-o" data-mode="pvp-drops" data-action="selectRoomMode:pvp-drops">
             <div class="mode-icon-blocks" id="iconPvpDrops"></div>
             <div class="mode-text">
               <div class="mode-name">2 Players: Versus</div>
               <div class="mode-sub">First to drop 11 blocks loses.</div>
             </div>
           </button>
-          <button class="mode-card c-z" data-mode="pvp-score" onclick="selectRoomMode('pvp-score', this)">
+          <button class="mode-card c-z" data-mode="pvp-score" data-action="selectRoomMode:pvp-score">
             <div class="mode-icon-blocks" id="iconPvpScore"></div>
             <div class="mode-text">
               <div class="mode-name">2 Players: Topple</div>
@@ -486,7 +578,7 @@
 
     <div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:24px;">
       <input type="text" id="roomInput" class="room-input" placeholder="0-9" maxlength="2" inputmode="numeric" pattern="[0-9]{1,2}">
-      <button class="btn-restart" style="background:#059669;" onclick="joinRoom()">Join Room (P2)</button>
+      <button class="btn-restart" style="background:#059669;" data-action="joinRoom">Join Room (P2)</button>
     </div>
 
     <div class="modal-desc" id="lobbyStatus" style="margin-top:16px;"></div>
@@ -524,7 +616,7 @@
         <div id="modalOverlay" class="modal-overlay">
           <div id="modalTitle" class="modal-title">P1 Wins!</div>
           <div id="modalDesc" class="modal-desc">P2 dropped too many blocks.</div>
-          <button class="btn-restart" id="btnRestart" onclick="resetGame()">Play Again</button>
+          <button class="btn-restart" id="btnRestart" data-action="resetGame">Play Again</button>
         </div>
       </div>
 
@@ -563,17 +655,17 @@
 
   <!-- 右下角微型工具按鈕：直橫式切換 / 全螢幕 (手機模式下已整合進主控制區，此處僅供桌面/備用) -->
   <div id="floating-tools">
-    <div class="float-btn" onclick="toggleOrientationLayout()" title="切換直式/橫式">⤢</div>
-    <div class="float-btn" onclick="toggleFullScreen()" title="全螢幕">🔲</div>
+    <div class="float-btn" data-action="toggleOrientationLayout" title="切換直式/橫式">⤢</div>
+    <div class="float-btn" data-action="toggleFullScreen" title="全螢幕">🔲</div>
   </div>
 
   <!-- 98：多數值測試模式。單一按鈕開/關，面板一律全螢幕顯示，不會跟任何遊戲版面重疊 -->
   <!-- 暫時性診斷工具：左下角，隨時可開關的執行紀錄面板 -->
-  <div id="debugLogToggleBtn" onclick="toggleDebugLog()">📋 Log</div>
+  <div id="debugLogToggleBtn" data-action="toggleDebugLog">📋 Log</div>
   <div id="debugLogPanel"></div>
-  <div id="debugLogClearBtn" onclick="clearDebugLog()">Clear</div>
+  <div id="debugLogClearBtn" data-action="clearDebugLog">Clear</div>
 
-  <div id="debugToggleBtn" onclick="toggleDebugPanel()" title="數值測試面板">🧪</div>
+  <div id="debugToggleBtn" data-action="toggleDebugPanel" title="數值測試面板">🧪</div>
   <div id="debugPanel"></div>
 
   <!-- 開局前 10 秒過場說明畫面 -->
@@ -583,12 +675,12 @@
       <div class="intro-illust-box" id="gameIntroIllustration"></div>
       <div class="game-intro-tagline" id="gameIntroTagline">Reach the Line</div>
     </div>
-    <div class="game-intro-skip" id="introSkipBtn" onclick="tapIntroSkip()">Skip ⏭</div>
+    <div class="game-intro-skip" id="introSkipBtn" data-action="tapIntroSkip">Skip ⏭</div>
   </div>
 
   <div id="howToPlayOverlay">
     <div class="htp-modal">
-      <div class="htp-close" onclick="closeHowToPlay()">✕</div>
+      <div class="htp-close" data-action="closeHowToPlay">✕</div>
       <div class="htp-body">
 
         <div class="htp-page active" data-page="1">
@@ -650,13 +742,13 @@
 
       </div>
       <div class="htp-nav">
-        <div class="htp-nav-btn" id="htpPrevBtn" onclick="htpGoPrev()">‹ Prev</div>
+        <div class="htp-nav-btn" id="htpPrevBtn" data-action="htpGoPrev">‹ Prev</div>
         <div class="htp-dots">
           <span class="htp-dot active" data-dot="1"></span>
           <span class="htp-dot" data-dot="2"></span>
           <span class="htp-dot" data-dot="3"></span>
         </div>
-        <div class="htp-nav-btn" id="htpNextBtn" onclick="htpGoNext()">Next ›</div>
+        <div class="htp-nav-btn" id="htpNextBtn" data-action="htpGoNext">Next ›</div>
       </div>
     </div>
   </div>
@@ -711,21 +803,6 @@ window.addEventListener('unhandledrejection', function (e) {
   debugLog('PROMISE REJECTED: ' + (e.reason && e.reason.message ? e.reason.message : e.reason), true);
 });
 debugLog('Page script started loading.');
-(function () {
-  const statusEl = document.getElementById('diagScriptStatus');
-  if (statusEl) statusEl.innerText = 'JS: OK, running';
-  let tapCount = 0, clickCount = 0;
-  document.addEventListener('pointerdown', function () {
-    tapCount++;
-    const el = document.getElementById('diagTapCount');
-    if (el) el.innerText = 'Pointerdown: ' + tapCount;
-  }, true);
-  document.addEventListener('click', function () {
-    clickCount++;
-    const el = document.getElementById('diagClickCount');
-    if (el) el.innerText = 'Click: ' + clickCount;
-  }, true);
-})();
 
 const WORKER_SOURCE = `
   try {
@@ -1180,7 +1257,7 @@ function buildDebugPanel() {
 
   const shapeButtonsHtml = DEBUG_SHAPES.map(s => `
     <div class="debug-shape-btn${s.name === debugForcedShapeName ? ' selected' : ''}"
-         id="dbgShapeBtn-${s.name}" onclick="selectDebugShape('${s.name}')">${s.name}</div>`).join('');
+         id="dbgShapeBtn-${s.name}" data-action="selectDebugShape:${s.name}">${s.name}</div>`).join('');
 
   panel.innerHTML = `
     <div class="debug-panel-inner">
@@ -1191,12 +1268,12 @@ function buildDebugPanel() {
       ${rowsHtml}
 
       <div class="debug-section-title">Force Specific Shape</div>
-      <div id="dbgForceShapeToggle" class="debug-toggle-btn" onclick="toggleDebugForceShape()">Forcing: OFF</div>
+      <div id="dbgForceShapeToggle" class="debug-toggle-btn" data-action="toggleDebugForceShape">Forcing: OFF</div>
       <div class="debug-shape-grid">${shapeButtonsHtml}</div>
 
       <div class="debug-actions">
-        <button class="btn-restart" style="background:#3f3f46;" onclick="resetDebugDefaults()">Reset Defaults</button>
-        <button class="btn-restart" style="background:#4f46e5;" onclick="toggleDebugPanel()">Close</button>
+        <button class="btn-restart" style="background:#3f3f46;" data-action="resetDebugDefaults">Reset Defaults</button>
+        <button class="btn-restart" style="background:#4f46e5;" data-action="toggleDebugPanel">Close</button>
       </div>
     </div>
   `;
@@ -1416,9 +1493,9 @@ function renderConnectPanel(mode, code) {
     <div style="color:#e2e8f0; font-weight:700; font-size:0.85rem;">${MODE_NAMES[mode]}</div>
     <div style="font-size:0.72rem; color:#a8a29e; margin-top:4px;">Room ID</div>
     <div class="code-text" id="connectCodeText">${code || 'Connecting...'}</div>
-    <button id="copyBtn" class="btn-copy" onclick="copyCurrentRoomId()">📋 Copy ID</button>
+    <button id="copyBtn" class="btn-copy" data-action="copyCurrentRoomId">📋 Copy ID</button>
     <div class="waiting-text">Waiting for friend...</div>
-    <button class="btn-cancel" onclick="cancelRoomCreation()">Cancel</button>
+    <button class="btn-cancel" data-action="cancelRoomCreation">Cancel</button>
   `;
 }
 
@@ -1634,11 +1711,11 @@ function showBothSidesModePicker() {
   panel.innerHTML = `
     <div style="font-size:0.72rem; color:#a8a29e;">Solo (Both Sides) — pick a mode to test</div>
     <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
-      <button class="btn-restart" style="background:#4f46e5;" onclick="enterSoloBothSidesMode('coop')">Team Up</button>
-      <button class="btn-restart" style="background:#4f46e5;" onclick="enterSoloBothSidesMode('pvp-drops')">Versus</button>
-      <button class="btn-restart" style="background:#4f46e5;" onclick="enterSoloBothSidesMode('pvp-score')">Topple</button>
+      <button class="btn-restart" style="background:#4f46e5;" data-action="enterSoloBothSidesMode:coop">Team Up</button>
+      <button class="btn-restart" style="background:#4f46e5;" data-action="enterSoloBothSidesMode:pvp-drops">Versus</button>
+      <button class="btn-restart" style="background:#4f46e5;" data-action="enterSoloBothSidesMode:pvp-score">Topple</button>
     </div>
-    <button class="btn-cancel" style="margin-top:8px;" onclick="renderConnectPanel(null)">Cancel</button>
+    <button class="btn-cancel" style="margin-top:8px;" data-action="renderConnectPanelNull">Cancel</button>
   `;
   debugLog('showBothSidesModePicker(): picker rendered, panel className=' + panel.className);
 }
@@ -2024,60 +2101,4 @@ function toggleOrientationLayout() {
   applyControlsOffset(0);
 }
 
-// ============ 操作按鈕上下拖曳調整（長按「直橫式切換」鈕進入拖曳模式）============
-// 短按：切換直式/橫式。長按 350ms 後放開手指前的上下移動：整組按鈕（左4+右4）跟著垂直移動，
-// 放開後記住位置（直式、橫式分開記憶，存在 localStorage，下次打開自動套用）。
-// 只會移動按鈕的 Y 座標，不會推擠、縮放或改變其他任何 UI（遊玩區、手牌、玩家資訊都不受影響）。
-const CONTROLS_OFFSET_PREFIX = 'tetrimess-controls-offset-';
-function controlsOffsetKey() {
-  return CONTROLS_OFFSET_PREFIX + (document.body.getAttribute('data-layout') || 'portrait');
-}
-function loadControlsOffset() {
-  try { const v = localStorage.getItem(controlsOffsetKey()); return v ? parseFloat(v) : 0; } catch (e) { return 0; }
-}
-function saveControlsOffset(px) {
-  try { localStorage.setItem(controlsOffsetKey(), String(px)); } catch (e) {}
-}
-function applyControlsOffset(px) {
-  const left = document.getElementById('mobile-controls-left');
-  const right = document.getElementById('mobile-controls-right');
-  const t = `translateY(${px}px)`;
-  if (left) left.style.transform = t;
-  if (right) right.style.transform = t;
-}
-
-// 計算按鈕最多可以往上/往下移動到哪裡：
-// 上緣不可超出螢幕頂端；下緣不可超過「起始位置」(貼著 P1/P2 資訊上方)。
-// 遊玩區、五選三手牌本身則不設限，允許被按鈕蓋住（手牌 z-index 較高，仍會顯示在按鈕上方）。
-function computeControlsDragBounds(naturalTop, naturalBottom) {
-  const topLimit = 4;
-  const bottomLimit = naturalBottom; // 起始位置已貼著 P1/P2 資訊上方，不可再往下
-  return { topLimit, bottomLimit };
-}
-
-let controlsPressTimer = null;
-let controlsDragActive = false;
-let controlsDragStartY = 0;
-let controlsDragBaseOffset = 0;
-let controlsDragMin = 0;
-let controlsDragMax = 0;
-const CONTROLS_LONG_PRESS_MS = 350;
-
-function onOrientationPointerDown(e) {
-  controlsDragActive = false;
-  controlsDragStartY = e.clientY;
-  controlsDragBaseOffset = loadControlsOffset();
-  clearTimeout(controlsPressTimer);
-  controlsPressTimer = setTimeout(() => {
-    controlsDragActive = true;
-    const left = document.getElementById('mobile-controls-left');
-    let naturalTop = 0, naturalBottom = 0;
-    if (left) {
-      const prevTransform = left.style.transform;
-      left.style.transform = 'translateY(0px)';
-      const rect = left.getBoundingClientRect();
-      naturalTop = rect.top; naturalBottom = rect.bottom;
-      left.style.transform = prevTransform;
-    }
-    const bounds = computeControlsDragBounds(naturalTop, naturalBottom);
-    controlsDragMin = bounds.topLimit - naturalTop;
+// ============ 操作按鈕上下拖曳調整（長按「直橫式切
