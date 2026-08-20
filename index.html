@@ -61,7 +61,8 @@
     .game-container { position: relative; background: #141417; border-radius: 10px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.8), 0 8px 32px rgba(0,0,0,0.6); border: 1px solid #27272a; overflow: hidden; }
     canvas { display: block; }
 
-    .top-right-timer { position: absolute; top: 12px; right: 12px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; display: none; align-items: center; gap: 4px; z-index: 5; }
+    .top-right-timer { position: absolute; top: 12px; right: 12px; max-width: 70%; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; display: none; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; z-index: 5; }
+    .top-right-timer .timer-suffix { color: #fff; background: #ef4444; padding: 1px 5px; border-radius: 4px; font-size: 0.72rem; letter-spacing: 0.5px; }
     .top-right-timer.active { display: flex; }
 
     .modal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 12, 0.92); backdrop-filter: blur(6px); display: flex; flex-direction: column; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 100; }
@@ -504,7 +505,8 @@ const WORKER_SOURCE = `
   let currentPlayer = 1, gameState = 'SELECT_CARD', playerDrops = { 1: 0, 2: 0 }, lastDropWarningMsg = '';
   let gameMode = 'pvp-drops';
   let sharedDropCount = 0, playerScores = { 1: 0, 2: 0 };
-  const PVP_SCORE_TARGET = 35; const PVP_SCORE_LOSE_THRESHOLD = -3;
+  const PVP_SCORE_TARGET = 35;
+  let playerTimeoutStrikes = { 1: 0, 2: 0 }; // 超時罰則獨立計數，跟 playerScores 分開，不共用輸分門檻
   const MOVE_RANGE_SHRINK = 4 * TILE_SIZE; const TURN_TIME_LIMIT_MS = 15000;
   let turnStartTime = 0;
   let sharedHand = [], selectedCardIndex = 0, activeShape = null, activeMatrix = null;
@@ -678,7 +680,7 @@ const WORKER_SOURCE = `
   function initGame(mode) {
     gameMode = mode || gameMode || 'pvp-drops';
     placedBodies.forEach(b => Composite.remove(engine.world, b)); placedBodies = [];
-    currentPlayer = 1; playerDrops = { 1: 0, 2: 0 }; sharedDropCount = 0; playerScores = { 1: 0, 2: 0 }; lastDropWarningMsg = ''; gameState = 'SELECT_CARD'; selectedCardIndex = 0; currentDroppedBody = null; hasTouched = false; stableSince = null; stabilitySnapshot = null; totalPlacementCount = 0; drawCount = 0; lastIDrawnAt = -Infinity; pendingDotCount = 0; drawsSinceLastDotPair = Infinity;
+    currentPlayer = 1; playerDrops = { 1: 0, 2: 0 }; sharedDropCount = 0; playerScores = { 1: 0, 2: 0 }; playerTimeoutStrikes = { 1: 0, 2: 0 }; lastDropWarningMsg = ''; gameState = 'SELECT_CARD'; selectedCardIndex = 0; currentDroppedBody = null; hasTouched = false; stableSince = null; stabilitySnapshot = null; totalPlacementCount = 0; drawCount = 0; lastIDrawnAt = -Infinity; pendingDotCount = 0; drawsSinceLastDotPair = Infinity;
     modalTitle = ''; modalDesc = '';
     turnStartTime = Date.now();
     sharedHand = [getRandomShape(), getRandomShape(), getRandomShape(), getRandomShape(), getRandomShape()];
@@ -730,18 +732,26 @@ const WORKER_SOURCE = `
 
   function handleTurnTimeout() {
     if (gameState === 'GAME_OVER') return;
-    playerScores[currentPlayer] -= 1;
-    if (playerScores[currentPlayer] < PVP_SCORE_LOSE_THRESHOLD) playerScores[currentPlayer] = PVP_SCORE_LOSE_THRESHOLD;
-    if (playerScores[currentPlayer] <= PVP_SCORE_LOSE_THRESHOLD) {
+    const p = currentPlayer;
+    playerTimeoutStrikes[p] = (playerTimeoutStrikes[p] || 0) + 1;
+    const strikes = playerTimeoutStrikes[p];
+
+    if (strikes >= 4) {
       lastDropWarningMsg = '';
-      endGame('P' + (currentPlayer === 1 ? 2 : 1) + ' Wins!', 'P' + currentPlayer + ' score is too low (' + PVP_SCORE_LOSE_THRESHOLD + ')!');
+      endGame('P' + (p === 1 ? 2 : 1) + ' Wins!', 'P' + p + ' timed out 4 times!');
       return;
     }
-    lastDropWarningMsg = playerScores[currentPlayer] === -2
-      ? '⚠️ Warning! P' + currentPlayer + ' is at -2 pts. 1 more time-out = Lose!'
-      : '⏰ P' + currentPlayer + ' Time Out! -1 pt (Total: ' + playerScores[currentPlayer] + ')';
-    activeShape = null; activeMatrix = null; currentPlayer = currentPlayer === 1 ? 2 : 1;
-    selectedCardIndex = 0; gameState = 'SELECT_CARD'; turnStartTime = Date.now();
+
+    const penaltyByStrike = { 1: 0, 2: 1, 3: 2 };
+    const penalty = penaltyByStrike[strikes] || 0;
+    if (penalty > 0) playerScores[p] -= penalty;
+
+    if (strikes === 1) lastDropWarningMsg = '⏰ P' + p + ' Time Out! (1st free pass, no penalty)';
+    else if (strikes === 2) lastDropWarningMsg = '⏰ P' + p + ' Time Out! -1 pt (Total: ' + playerScores[p] + ')';
+    else lastDropWarningMsg = '⚠️ P' + p + ' Time Out! -2 pts. Next time-out = LOSE!';
+
+    // 方塊留在原地原位置、不換人：只重置計時器讓同一位玩家繼續嘗試
+    turnStartTime = Date.now();
   }
 
   function endGame(title, desc) { gameState = 'GAME_OVER'; modalTitle = title; modalDesc = desc; }
@@ -797,7 +807,7 @@ const WORKER_SOURCE = `
       gameState, currentPlayer, playerDrops, sharedHand, activeMatrix, activeShape,
       posX, posY, countdownValue, selectedCardIndex, lastDropWarningMsg,
       hasTouched, touchTime, modalTitle, modalDesc,
-      gameMode, sharedDropCount, playerScores, turnStartTime,
+      gameMode, sharedDropCount, playerScores, turnStartTime, playerTimeoutStrikes,
       bodies: placedBodies.map(b => ({
         id: b.id,
         x: Math.round(b.position.x * 1000) / 1000, y: Math.round(b.position.y * 1000) / 1000,
@@ -1000,6 +1010,7 @@ function createPhysicsWorker() {
     lastDropWarningMsg = s.lastDropWarningMsg; hasTouched = s.hasTouched; touchTime = s.touchTime;
     modalTitle = s.modalTitle; modalDesc = s.modalDesc;
     gameMode = s.gameMode; sharedDropCount = s.sharedDropCount; playerScores = s.playerScores; turnStartTime = s.turnStartTime;
+    playerTimeoutStrikes = s.playerTimeoutStrikes || { 1: 0, 2: 0 };
     localBodies = s.bodies;
 
     if (gameState === 'GAME_OVER') showModal(s.modalTitle, s.modalDesc);
@@ -1270,7 +1281,7 @@ function broadcastState() {
     gameState, currentPlayer, playerDrops, sharedHand,
     posX: roundNum(posX), posY: roundNum(posY), activeMatrix, activeShape, countdownValue,
     selectedCardIndex, lastDropWarningMsg, hasTouched, touchTime, modalTitle, modalDesc,
-    gameMode, sharedDropCount, playerScores, turnStartTime,
+    gameMode, sharedDropCount, playerScores, turnStartTime, playerTimeoutStrikes,
     bodies: localBodies 
   };
   try { conn.send({ type: 'SYNC', state: snapshot }); } catch (e) { console.error('Broadcast failed:', e); }
@@ -1325,6 +1336,7 @@ function applySyncedState(state) {
   selectedCardIndex = state.selectedCardIndex; lastDropWarningMsg = state.lastDropWarningMsg;
   hasTouched = state.hasTouched; touchTime = state.touchTime;
   gameMode = state.gameMode; sharedDropCount = state.sharedDropCount; playerScores = state.playerScores; turnStartTime = state.turnStartTime;
+  playerTimeoutStrikes = state.playerTimeoutStrikes || { 1: 0, 2: 0 };
   remoteBodies = state.bodies;
   prevSnapshot = currSnapshot;
   currSnapshot = { time: performance.now(), bodies: state.bodies };
@@ -1344,6 +1356,7 @@ let posX = CANVAS_WIDTH / 2, posY = 200, countdownValue = 3;
 let hasTouched = false, touchTime = 0;
 let modalTitle = '', modalDesc = ''; 
 let gameMode = 'pvp-drops', sharedDropCount = 0, playerScores = { 1: 0, 2: 0 }, turnStartTime = 0;
+let playerTimeoutStrikes = { 1: 0, 2: 0 };
 const TURN_TIME_LIMIT_MS = 15000; // 跟 worker 裡的值保持一致，只有 Score 模式會用到（見 updateUI 的倒數顯示）
 let localBodies = []; 
 
@@ -1409,7 +1422,8 @@ function updateUI() {
   } else if (gameMode === 'pvp-score' && (gameState === 'SELECT_CARD' || gameState === 'POSITIONING') && turnStartTime) {
     // Score 模式的放置倒數，跟「Safe In」共用同一個右上角位置與樣式
     const remainingSec = Math.max(0, Math.ceil((TURN_TIME_LIMIT_MS - (Date.now() - turnStartTime)) / 1000));
-    showTopRightTimer(remainingSec, 'P' + currentPlayer + ' Place');
+    const strikes = (playerTimeoutStrikes && playerTimeoutStrikes[currentPlayer]) || 0;
+    showTopRightTimer(remainingSec, 'P' + currentPlayer + ' Place', strikes === 3 ? 'Last Chance!' : '');
   } else {
     hideTopRightTimer();
   }
@@ -1450,7 +1464,7 @@ function drawMatrixToCanvas(targetCtx, matrix, color, centerX, centerY, tileSize
   targetCtx.restore();
 }
 
-function showTopRightTimer(val, label) { const el = document.getElementById('topRightTimer'); el.classList.add('active'); el.innerHTML = `<span>${label || 'Safe In'}:</span> <span id="timerVal">${val}</span>s`; }
+function showTopRightTimer(val, label, suffix) { const el = document.getElementById('topRightTimer'); el.classList.add('active'); el.innerHTML = `<span>${label || 'Safe In'}:</span> <span id="timerVal">${val}</span>s${suffix ? ' <span class="timer-suffix">' + suffix + '</span>' : ''}`; }
 function hideTopRightTimer() { document.getElementById('topRightTimer').classList.remove('active'); }
 
 function handleLocalPredictionInput(key) {
@@ -1906,4 +1920,4 @@ renderLobbyTwoLightning('iconPvpScore', '#c6b7b2', '#cbbe93');
 </script>
 
 </body>
-</html>
+  </html>
