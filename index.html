@@ -416,11 +416,19 @@
   <!-- ===== 終極診斷用：不用點任何東西，一打開頁面就能看到結果 ===== -->
   <div id="ultimateDiagBanner" style="position:fixed; top:0; left:0; right:0; z-index:99999; background:#000; color:#0f0; font-family:monospace; font-size:10px; line-height:1.4; padding:5px 6px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; border-bottom:2px solid #0f0;">
     <span id="diagScriptStatus">JS: loading...</span>
+    <span id="diagEarlyStatus">Early script: not yet</span>
     <span id="diagTapCount">Pointerdown: 0</span>
     <span id="diagClickCount">Click: 0</span>
     <span onclick="document.getElementById('diagRawOnclick').innerText='RAW ONCLICK: FIRED!'" style="background:#144d14;padding:2px 8px;border-radius:4px;">TAP THIS BOX</span>
     <span id="diagRawOnclick">RAW ONCLICK: not yet</span>
   </div>
+  <script>
+    try {
+      document.getElementById('diagEarlyStatus').innerText = 'Early script: OK';
+    } catch (e) {
+      document.getElementById('diagEarlyStatus').innerText = 'Early script: ERR ' + e.message;
+    }
+  </script>
   <div style="height:34px;"></div>
 
   <!-- Lobby Modal -->
@@ -2073,8 +2081,3 @@ function onOrientationPointerDown(e) {
     }
     const bounds = computeControlsDragBounds(naturalTop, naturalBottom);
     controlsDragMin = bounds.topLimit - naturalTop;
-    controlsDragMax = bounds.bottomLimit - naturalBottom;
-    if (controlsDragMax < controlsDragMin) controlsDragMax = controlsDragMin;
-    const btn = document.getElementById('mc-orientation');
-    if (btn) btn.classList.add('dragging');
-    if (navigator.vibrate) { try { navigator.vibrate(
