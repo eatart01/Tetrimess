@@ -615,6 +615,18 @@
   </div>
 
 <script>
+// ===== 暫時性診斷用：任何未捕捉的錯誤都會跳出來，方便回報 =====
+window.addEventListener('error', function(e) {
+  try {
+    alert('DEBUG - JS Error:\n' + e.message + '\nAt: ' + (e.filename ? e.filename.split('/').pop() : '?') + ':' + e.lineno + ':' + e.colno);
+  } catch (err) {}
+});
+window.addEventListener('unhandledrejection', function(e) {
+  try {
+    alert('DEBUG - Unhandled Promise Rejection:\n' + (e.reason && e.reason.message ? e.reason.message : e.reason));
+  } catch (err) {}
+});
+
 const WORKER_SOURCE = `
   try {
     importScripts('https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js');
@@ -1337,10 +1349,14 @@ function startSoloChallenge() {
   document.activeElement.blur();
   resetConnectionState();
   myRole = 'P1';
-  createPhysicsWorker();
   document.getElementById('p1Title').innerText = 'Player 1 (You)';
   document.getElementById('p2Title').innerText = 'Player 2';
-  physicsWorker.postMessage({ type: 'INIT', mode: 'solo' });
+  try {
+    createPhysicsWorker();
+    physicsWorker.postMessage({ type: 'INIT', mode: 'solo' });
+  } catch (e) {
+    console.error('Failed to start physics worker:', e);
+  }
   revealGameplayWithIntro('solo');
 }
 
@@ -1463,10 +1479,14 @@ function enterSoloTestMode() {
   resetConnectionState();
   isSoloTestMode = true;
   myRole = 'P1';
-  createPhysicsWorker();
   document.getElementById('p1Title').innerText = 'Player 1 (Test)';
   document.getElementById('p2Title').innerText = 'Player 2 (Test)';
-  physicsWorker.postMessage({ type: 'INIT' });
+  try {
+    createPhysicsWorker();
+    physicsWorker.postMessage({ type: 'INIT' });
+  } catch (e) {
+    console.error('Failed to start physics worker:', e);
+  }
   revealGameplayWithIntro('solo');
 }
 
@@ -1489,10 +1509,14 @@ function enterSoloBothSidesMode(mode) {
   resetConnectionState();
   isSoloTestMode = true; // 沿用「輪到誰、輸入就直接控制誰」的既有機制
   myRole = 'P1';
-  createPhysicsWorker();
   document.getElementById('p1Title').innerText = 'Player 1';
   document.getElementById('p2Title').innerText = 'Player 2';
-  physicsWorker.postMessage({ type: 'INIT', mode });
+  try {
+    createPhysicsWorker();
+    physicsWorker.postMessage({ type: 'INIT', mode });
+  } catch (e) {
+    console.error('Failed to start physics worker:', e);
+  }
   revealGameplayWithIntro(mode);
 }
 
@@ -2103,23 +2127,4 @@ if (window.ResizeObserver) {
     let resizeObserverFrame = null;
     const gameContainerObserver = new ResizeObserver(() => {
       if (resizeObserverFrame) cancelAnimationFrame(resizeObserverFrame);
-      resizeObserverFrame = requestAnimationFrame(() => { positionHandRow(); });
-    });
-    gameContainerObserver.observe(gameContainerEl);
-  }
-}
-window.addEventListener('resize', refreshLayout);
-window.addEventListener('orientationchange', refreshLayout);
-// 手機瀏覽器旋轉時，網址列/工具列收合經常是「resize 事件先觸發、但實際視窗高度晚幾百毫秒才真正定型」，
-// 且部分手機瀏覽器（尤其 iOS Safari）在這個過程中不會再補發第二次 resize 事件。
-// 因此額外用 visualViewport 監聽，並在旋轉後補一次延遲重算，確保最終一定會用「真正穩定後」的尺寸校正一次。
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', refreshLayout);
-}
-window.addEventListener('orientationchange', () => {
-  setTimeout(refreshLayout, 150);
-  setTimeout(refreshLayout, 400);
-  setTimeout(refreshLayout, 700);
-});
-
-function resetGame() { if (myRole === 'P1' && physicsWorker) physicsWorker.postMessa
+      resizeObserverFrame = requestAnim
