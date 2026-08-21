@@ -1,0 +1,2538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Tetrimess</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    html {
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+    }
+    body {
+      background-color: #0f0f12;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #94a3b8;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      height: 100vh;
+      width: 100vw;
+      max-width: 100%;
+      overflow: hidden;
+      padding-top: 4px;
+      touch-action: manipulation;
+    }
+
+    .layout-wrapper { display: flex; flex-direction: row; align-items: flex-start; justify-content: center; gap: 28px; max-height: 95vh; }
+    .side-panel { display: flex; flex-direction: column; gap: 8px; width: 250px; }
+    .center-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
+
+    .player-card { background: #18181c; border: 1px solid #27272a; border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; transition: all 0.3s ease; width: 100%; }
+    .player-card.active-p1 { border-color: #3b82f6; background: #1e293b; box-shadow: 0 0 10px rgba(59, 130, 246, 0.2); }
+    .player-card.active-p2 { border-color: #f97316; background: #2a1b12; box-shadow: 0 0 10px rgba(249, 115, 22, 0.2); }
+    .player-card.player-card-disabled { opacity: 0.35; filter: grayscale(1); }
+    .player-title { font-size: 0.8rem; font-weight: 700; color: #cbd5e1; }
+    .drop-status { font-size: 0.7rem; color: #71717a; display: flex; align-items: center; gap: 4px; }
+    .drop-badge { display: inline-block; padding: 1px 4px; border-radius: 4px; font-size: 0.65rem; font-weight: 600; background: #27272a; color: #a1a1aa; }
+    .turn-timer-badge {
+      display: none; width: 28px; height: 28px; border-radius: 50%;
+      align-items: center; justify-content: center;
+      background: #18181c; border: 2px solid #cbbe93; color: #cbbe93;
+      font-weight: 700; font-size: 0.8rem;
+    }
+    .turn-timer-badge.urgent { border-color: #ef4444; color: #ef4444; }
+    .drop-badge.warn { background: #7f1d1d; color: #fca5a5; }
+
+    .status-card { background: #18181c; border: 1px solid #27272a; border-radius: 10px; padding: 12px; font-size: 0.85rem; color: #a1a1aa; line-height: 1.4; text-align: center; min-height: 52px; display: flex; align-items: center; justify-content: center; }
+    .status-card .warning-msg { color: #f87171; font-weight: 600; }
+
+    .info-box { background: #18181c; border: 1px dashed #3f3f46; border-radius: 10px; padding: 12px; font-size: 0.8rem; color: #818cf8; line-height: 1.5; }
+    .info-box h4 { color: #cbd5e1; margin-bottom: 6px; font-size: 0.85rem; }
+    .key { background: #27272a; color: #e2e8f0; padding: 1px 5px; border-radius: 4px; font-weight: 600; font-family: monospace; border: 1px solid #3f3f46; }
+
+    .hand-container-vertical { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+    .card { width: 50px; height: 50px; background: #18181c; border: 2px solid #27272a; border-radius: 8px; display: flex; justify-content: center; align-items: center; transition: all 0.2s ease; overflow: hidden;}
+    .card canvas { object-fit: contain; }
+    .card.selected-p1 { border-color: #3b82f6; background: #1e293b; transform: scale(1.06); box-shadow: 0 0 10px rgba(59, 130, 246, 0.3); }
+    .card.selected-p2 { border-color: #f97316; background: #2a1b12; transform: scale(1.06); box-shadow: 0 0 10px rgba(249, 115, 22, 0.3); }
+
+    .game-container { position: relative; background: #141417; border-radius: 10px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.8), 0 8px 32px rgba(0,0,0,0.6); border: 1px solid #27272a; overflow: hidden; }
+    canvas { display: block; }
+
+    .top-right-timer { position: absolute; top: 12px; right: 12px; max-width: 70%; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; display: none; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; z-index: 5; }
+    .top-right-timer .timer-suffix { color: #fff; background: #ef4444; padding: 1px 5px; border-radius: 4px; font-size: 0.72rem; letter-spacing: 0.5px; }
+    .top-right-timer.active { display: flex; }
+
+    .modal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; background: rgba(10, 10, 12, 0.92); backdrop-filter: blur(6px); display: flex; flex-direction: column; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 100; }
+    .modal-overlay.active { opacity: 1; pointer-events: auto; }
+    .modal-title { font-size: 1.8rem; font-weight: 700; color: #f1f5f9; margin-bottom: 8px; text-align: center;}
+    .modal-desc { font-size: 0.95rem; color: #94a3b8; margin-bottom: 20px; text-align: center; padding: 0 20px; line-height: 1.5; }
+
+    .btn-restart { padding: 10px 24px; background: #4f46e5; color: #ffffff; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .btn-restart:hover { background: #4338ca; }
+    
+    .room-input { background: #18181c; border: 1px solid #3f3f46; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 0.95rem; outline: none; width: 180px; text-align: center; }
+    .room-input:focus { border-color: #9ead9d; }
+
+    .lobby-row { display: flex; flex-direction: row; align-items: flex-start; gap: 16px; margin-top: 18px; flex-wrap: wrap; justify-content: center; }
+    .mode-card {
+      background: #18181c; border: 2px solid #33322e; border-radius: 12px; padding: 16px 14px; width: 168px;
+      color: #e2e8f0; cursor: pointer; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px;
+      transition: all 0.15s;
+    }
+    .mode-card:hover { transform: translateY(-2px); filter: brightness(1.15); }
+    .mode-card.c-i { border-color: #8ca1ab; }
+    .mode-card.c-j { border-color: #78909c; }
+    .mode-card.c-t { border-color: #9ead9d; }
+    .mode-card.c-o { border-color: #af9a92; }
+    .mode-card.c-z { border-color: #cbbe93; }
+    .mode-card.c-s { border-color: #c6b7b2; }
+    .mode-card.selected { background: #22271f; border-width: 3px; filter: brightness(1.25); }
+    .mode-name { font-weight: 700; font-size: 0.88rem; }
+    .mode-sub { font-size: 0.68rem; color: #a8a29e; line-height: 1.4; }
+    .mode-icon-blocks { display: flex; gap: 6px; align-items: center; justify-content: center; height: 44px; }
+
+    .mode-substack-wrap { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+    .mode-substack-title { font-size: 0.72rem; color: #a8a29e; font-weight: 600; }
+    .mode-substack { display: flex; flex-direction: column; gap: 10px; }
+    .mode-substack .mode-card { width: 190px; padding: 12px 12px; flex-direction: row; text-align: left; gap: 10px; }
+    .mode-substack .mode-card .mode-icon-blocks { height: 34px; flex-shrink: 0; }
+    .mode-substack .mode-card .mode-text { display: flex; flex-direction: column; gap: 2px; }
+
+    .connect-panel {
+      display: flex; background: #18181c; border: 2px solid #33322e; border-radius: 12px; padding: 16px;
+      width: 210px; height: 260px; align-items: center; justify-content: center; text-align: center; gap: 10px; flex-direction: column;
+    }
+    .connect-panel.has-content { border-color: #c6b7b2; justify-content: flex-start; }
+    .connect-panel .code-text { color: #cbbe93; font-size: 1.3rem; font-weight: 700; letter-spacing: 1px; }
+    .connect-panel .waiting-text { color: #a8a29e; font-size: 0.78rem; }
+    .connect-placeholder { color: #6b6862; font-size: 0.78rem; line-height: 1.8; }
+    .btn-cancel { background: transparent; border: 1px solid #78443f; color: #e0918a; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.78rem; }
+    .btn-cancel:hover { background: #2a1414; }
+
+    .btn-copy { background: #3f3f46; color: #e2e8f0; border: 1px solid #52525b; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-copy:hover { background: #52525b; color: #fff; }
+
+    /* ========================================================
+       手機版：混合控制面板 (左4鈕、右4鈕，統一單一高度)
+       左側 2x2：左上=旋轉 右上=確定 左下=← 右下=→
+       右側 2x2：左上=直橫式切換 右上=旋轉 左下=全螢幕 右下=確定
+       操作按鈕以浮動疊加方式蓋在遊玩區上，不會推擠其他 UI。
+       長按「直橫式切換」鈕可進入拖曳模式，上下移動整組按鈕、放開後自動記憶位置（直式/橫式分開記憶）。
+    ======================================================== */
+    /* 遊戲正式開始前（大廳選單＋十秒過場期間），P1/P2 資訊列跟操作按鈕直接鎖黑不可見，
+       這樣不管上層遮罩在網址列變化那一瞬間有沒有完美貼合，露出的縫隙看到的也只是純黑背景，
+       不會看到玩家資訊或按鈕。故意不加 transition：瞬間切換，不製造額外的淡入淡出殘影。 */
+    .pregame-hidden { opacity: 0 !important; pointer-events: none !important; }
+
+    #mobile-controls-row {
+      display: none; z-index: 50;
+    }
+    #mobile-controls-left {
+      display: none; position: absolute; bottom: 8%; left: 8px; width: 44%;
+      grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr);
+      gap: 4px; z-index: 50; touch-action: manipulation;
+    }
+    #mobile-controls-right {
+      display: none; position: absolute; bottom: 8%; right: 8px; width: 44%;
+      grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr);
+      gap: 4px; z-index: 50; touch-action: manipulation;
+    }
+
+    .mc-btn {
+      background: rgba(63, 63, 70, 0.9); border: 1px solid #71717a; border-radius: 8px;
+      color: white; font-size: 1.1rem; font-weight: bold; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      user-select: none; touch-action: manipulation; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      cursor: pointer;
+    }
+    .mc-btn:active { background: #52525b; transform: scale(0.96); }
+    /* 確定鍵不再使用藍底，統一與其他按鈕同款 */
+    #mc-orientation { touch-action: none; } /* 長按拖曳時避免觸發瀏覽器捲動/縮放手勢 */
+    #mc-orientation.dragging { background: rgba(59, 130, 246, 0.9); border-color: #2563eb; }
+    #mc-fullscreen { touch-action: none; } /* 長按拖曳整頁時避免觸發瀏覽器捲動/縮放手勢 */
+    #mc-fullscreen.dragging { background: rgba(217, 119, 6, 0.9); border-color: #b45309; }
+
+    /* 右下角微型工具按鈕群（桌面/備用，手機模式下會被隱藏，功能已併入主控制區） */
+    #floating-tools {
+      display: none; position: fixed; right: 8px; bottom: 8px; z-index: 60;
+      flex-direction: column; gap: 8px;
+    }
+    .float-btn {
+      width: 32px; height: 32px; border-radius: 50%; background: rgba(24, 24, 28, 0.8);
+      border: 1px solid #3f3f46; color: white; font-size: 0.8rem; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; user-select: none; touch-action: manipulation; backdrop-filter: blur(4px); box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+    .float-btn:active { background: #3f3f46; }
+
+    /* ========================================================
+       響應式設計：手機模式判定（直式窄螢幕 或 橫式短螢幕都算手機模式）
+    ======================================================== */
+    @media (max-width: 900px), (max-height: 700px) {
+      #mobile-controls-left, #mobile-controls-right { display: grid; }
+      #mobile-controls-row { display: flex; }
+      #floating-tools { display: none; } /* 功能已併入主控制區的 8 顆按鈕，不再需要浮動鈕 */
+
+      body { padding: 0; height: 100vh; background-color: #000; overflow: hidden; }
+      .layout-wrapper { height: 100vh; width: 100vw; padding: 0; margin: 0; position: relative; max-height: none; }
+      .side-panel { width: 100%; flex-direction: column; gap: 2px; }
+      .side-panel.left, .side-panel.right { display: none !important; }
+      .card canvas { width: 100%; height: 100%; }
+    }
+
+    /* ================= 直式 (Portrait) ================= */
+    /* 由上到下：遊玩區(頂到最上方，全尺寸不縮小) -> 五選三手牌 -> P1/P2 資訊(最下方)      */
+    /* 操作按鈕(8顆) 以浮動疊加方式蓋在遊玩區上，預設貼近底部，可長按直橫式切換鈕上下拖曳調整 */
+    @media (max-width: 900px), (max-height: 700px) {
+      body[data-layout="portrait"] .layout-wrapper {
+        flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0;
+      }
+
+      /* 遊玩區：全尺寸，不因按鈕而縮小；靠上對齊，確保最上緣一定頂到最上方
+         注意：.center-panel 的 flex-direction 是 column（繼承自基本樣式），
+         所以「垂直方向」由 justify-content 控制、「水平方向」由 align-items 控制。 */
+      body[data-layout="portrait"] .center-panel {
+        order: 1; flex: 1 1 auto; min-height: 0; width: 100%;
+        display: flex; justify-content: flex-start; align-items: center; padding: 0; position: relative;
+      }
+      body[data-layout="portrait"] .game-container {
+        margin: 0 auto;
+      }
+      body[data-layout="portrait"] canvas { width: auto; height: 100%; max-width: 100%; object-fit: contain; }
+
+      /* 操作按鈕區：浮動疊加在遊玩區之上，預設「貼著接在 P1/P2 資訊上方」，可上下拖曳（不推擠其他 UI） */
+      body[data-layout="portrait"] #mobile-controls-row {
+        position: absolute; left: 0; right: 0; bottom: 0;
+        flex-direction: row; justify-content: space-between;
+        align-items: flex-end; gap: 10px; padding: 0 8px 4px; box-sizing: border-box;
+      }
+      body[data-layout="portrait"] #mobile-controls-left,
+      body[data-layout="portrait"] #mobile-controls-right {
+        position: relative; left: auto; right: auto; bottom: auto; top: auto; width: 46%;
+      }
+
+      /* 五選三手牌區：浮動疊加在遊玩區的紅線下方一點點位置（不緊貼紅線），由 JS 精確定位；
+         選定方塊後（gameState 不是 SELECT_CARD）自動隱藏，輪到選牌時（SELECT_CARD）自動出現。
+         z-index 高於操作按鈕區，若按鈕被拖到很高蓋到手牌位置，手牌仍顯示在按鈕上方。 */
+      body[data-layout="portrait"] .hand-container-vertical {
+        position: absolute; left: 0; right: 0; top: 70px;
+        flex-direction: row; justify-content: center; width: 100%; gap: 6px;
+        margin: 0; z-index: 60; transition: opacity 0.15s ease;
+      }
+      body[data-layout="portrait"] .hand-container-vertical.hand-hidden { display: none; }
+      body[data-layout="portrait"] .card { width: 40px; height: 40px; }
+
+      /* P1/P2 資訊：整個直式畫面最下方 */
+      body[data-layout="portrait"] #top-players-container {
+        display: flex; flex-direction: row; gap: 6px; width: 100%;
+        order: 3; margin: 0; padding: 0 6px 4px; box-sizing: border-box; flex: 0 0 auto;
+      }
+      body[data-layout="portrait"] #top-players-container .player-card { flex: 1; }
+    }
+
+    /* ========================================================
+       98：多數值測試模式（Debug Panel）
+       一顆按鈕開/關，面板一律「佈滿整個畫面」顯示，絕對不會跟遊戲版面產生任何重疊/擠壓問題。
+    ======================================================== */
+    #debugToggleBtn {
+      display: none; position: fixed; top: 8px; left: 8px; z-index: 500;
+      width: 34px; height: 34px; border-radius: 50%; background: rgba(24,24,28,0.9);
+      border: 1px solid #52525b; color: #fbbf24; font-size: 1rem; align-items: center; justify-content: center;
+      cursor: pointer; user-select: none; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+    #debugToggleBtn.debug-available { display: flex; }
+    #debugToggleBtn:active { background: #3f3f46; }
+    #debugToggleBtn.panel-open { color: #f87171; }
+
+    #debugPanel {
+      display: none; position: fixed; inset: 0; z-index: 480;
+      background: rgba(9,9,11,0.98); color: #e2e8f0;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 56px 16px 32px; box-sizing: border-box;
+    }
+    #debugPanel.active { display: block; }
+    .debug-panel-inner { max-width: 480px; margin: 0 auto; }
+    .debug-panel-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+    .debug-panel-sub { font-size: 0.75rem; color: #a1a1aa; margin-bottom: 18px; }
+    .debug-section-title { font-size: 0.85rem; font-weight: 700; color: #cbbe93; margin: 18px 0 10px; border-top: 1px solid #27272a; padding-top: 16px; }
+    .debug-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+    .debug-row label { font-size: 0.78rem; color: #a1a1aa; display: flex; justify-content: space-between; }
+    .debug-row label span.val { color: #e2e8f0; font-weight: 700; font-family: monospace; }
+    .debug-row input[type="range"] { width: 100%; accent-color: #4f46e5; }
+    .debug-shape-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 4px; }
+    .debug-shape-btn {
+      padding: 9px 4px; background: #27272a; border: 1px solid #3f3f46; border-radius: 6px;
+      color: #e2e8f0; font-size: 0.75rem; text-align: center; cursor: pointer; user-select: none;
+    }
+    .debug-shape-btn.selected { background: #4f46e5; border-color: #4f46e5; }
+    .debug-toggle-btn {
+      padding: 10px; background: #27272a; border: 1px solid #3f3f46; border-radius: 8px;
+      color: #e2e8f0; font-size: 0.85rem; font-weight: 700; text-align: center; cursor: pointer; width: 100%;
+    }
+    .debug-toggle-btn.on { background: #059669; border-color: #059669; }
+    .debug-actions { display: flex; gap: 8px; margin-top: 20px; }
+    .debug-actions button { flex: 1; }
+
+    /* ========================================================
+       開局前 10 秒過場說明畫面（四個模式共用一套結構，內容依模式替換）
+    ======================================================== */
+    .game-intro-overlay {
+      display: none; position: fixed; inset: 0; z-index: 550;
+      background: rgba(10,10,12,0.95); backdrop-filter: blur(4px);
+      align-items: center; justify-content: center;
+    }
+    .game-intro-overlay.active { display: flex; }
+    .game-intro-countdown {
+      position: absolute; top: 14px; right: 14px;
+      background: rgba(63,63,70,0.9); border: 1px solid #71717a; color: #e2e8f0;
+      padding: 6px 14px; border-radius: 8px; font-size: 1rem; font-weight: 700; letter-spacing: 0.5px;
+    }
+    .game-intro-content { display: flex; flex-direction: column; align-items: center; gap: 26px; padding: 0 20px; }
+    .game-intro-tagline { font-size: 1.6rem; font-weight: 800; color: #f1f5f9; letter-spacing: 0.5px; text-align: center; }
+    .game-intro-skip {
+      position: absolute; right: 16px; bottom: 16px;
+      background: rgba(63,63,70,0.9); border: 1px solid #71717a; color: #e2e8f0;
+      padding: 10px 20px; border-radius: 999px; font-size: 0.9rem; font-weight: 700;
+      cursor: pointer; user-select: none; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    }
+    .game-intro-skip:active { background: #52525b; }
+    .game-intro-skip.done { opacity: 0.6; pointer-events: none; }
+
+    .intro-illust-box { position: relative; }
+    .intro-line { position: absolute; left: 0; right: 0; border-top: 2px dashed #22c55e; }
+    .intro-stack { position: absolute; display: flex; flex-direction: column-reverse; }
+    .intro-block { border-radius: 4px; }
+    .intro-x { position: absolute; font-weight: 900; line-height: 1; }
+
+    @media (max-width: 900px), (max-height: 700px) {
+      .game-intro-tagline { font-size: 1.9rem; }
+      .game-intro-countdown { font-size: 1.1rem; padding: 8px 16px; }
+      .game-intro-skip { font-size: 1rem; padding: 12px 22px; }
+    }
+
+    /* ========================================================
+       How to Play：單人模式下方的說明按鈕 + 三頁說明視窗
+    ======================================================== */
+    #soloColumnWrap { align-self: stretch; justify-content: space-between; }
+    .mode-card.how-to-play-btn { border-color: #6b7280; }
+    .mode-card.how-to-play-btn .mode-icon-blocks { font-size: 1.6rem; }
+
+    #howToPlayOverlay {
+      display: none; position: fixed; inset: 0; z-index: 600;
+      background: rgba(10,10,12,0.94); backdrop-filter: blur(6px);
+      align-items: center; justify-content: center; padding: 16px; box-sizing: border-box;
+    }
+    #howToPlayOverlay.active { display: flex; }
+    .htp-modal {
+      background: #18181c; border: 2px solid #33322e; border-radius: 16px;
+      width: 100%; max-width: 480px; max-height: 88vh;
+      display: flex; flex-direction: column; position: relative;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    }
+    .htp-close {
+      position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border-radius: 50%;
+      background: #27272a; border: 1px solid #52525b; color: #e2e8f0; font-size: 1rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2; user-select: none;
+    }
+    .htp-close:active { background: #3f3f46; }
+    .htp-body { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 30px 22px 18px; }
+    .htp-page { display: none; }
+    .htp-page.active { display: block; }
+    .htp-page-title { font-size: 1.25rem; font-weight: 700; color: #f1f5f9; margin-bottom: 2px; }
+    .htp-page-tag { font-size: 0.7rem; color: #a8a29e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+    .htp-section { margin-top: 14px; }
+    .htp-section h4 { font-size: 0.92rem; font-weight: 700; color: #cbbe93; margin: 0 0 6px; }
+    .htp-section p, .htp-section li { font-size: 0.9rem; line-height: 1.6; color: #d4d4d8; margin: 0; }
+    .htp-section ul { margin: 4px 0 0 18px; padding: 0; }
+    .htp-section li { margin-bottom: 4px; }
+    .htp-highlight-box {
+      margin-top: 14px; padding: 10px 12px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.45);
+      border-radius: 8px; font-size: 0.86rem; line-height: 1.6; color: #d4d4d8;
+    }
+    .htp-highlight-box .htp-warn { color: #f87171; font-weight: 700; }
+    .htp-nav {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 12px 18px; border-top: 1px solid #27272a; flex-shrink: 0;
+    }
+    .htp-nav-btn {
+      padding: 9px 16px; background: #27272a; border: 1px solid #3f3f46; border-radius: 8px;
+      color: #e2e8f0; font-size: 0.85rem; font-weight: 700; cursor: pointer; min-width: 76px; text-align: center; user-select: none;
+    }
+    .htp-nav-btn:active { background: #3f3f46; }
+    .htp-nav-btn.disabled { opacity: 0.28; pointer-events: none; }
+    .htp-dots { display: flex; gap: 6px; }
+    .htp-dot { width: 7px; height: 7px; border-radius: 50%; background: #3f3f46; }
+    .htp-dot.active { background: #cbbe93; }
+
+    /* 直式手機優化：字體舒適加大、視窗貼近全螢幕，方便閱讀 */
+    @media (max-width: 900px), (max-height: 700px) {
+      .htp-modal { max-width: 94vw; max-height: 90vh; }
+      .htp-body { padding: 32px 18px 18px; }
+      .htp-page-title { font-size: 1.35rem; }
+      .htp-section h4 { font-size: 1rem; }
+      .htp-section p, .htp-section li { font-size: 1rem; line-height: 1.7; }
+      .htp-highlight-box { font-size: 0.95rem; padding: 12px 14px; }
+      .htp-nav-btn { font-size: 0.92rem; padding: 11px 16px; }
+    }
+  </style>
+  
+<script>
+/*
+ * Browser-safe UI event bridge.
+ * The original game used inline onclick handlers. This bridge binds the
+ * critical UI through addEventListener/delegation so normal mobile browsers
+ * do not depend on inline event-handler execution.
+ */
+(function () {
+  'use strict';
+
+  window.__uiBridgeBooted = false;
+
+  function callGameFunction(name, args) {
+    try {
+      var fn = window[name];
+      if (typeof fn !== 'function') {
+        console.error('[UI Bridge] Missing function:', name);
+        return false;
+      }
+      fn.apply(window, args || []);
+      return true;
+    } catch (err) {
+      console.error('[UI Bridge] ' + name + ' failed:', err);
+      return false;
+    }
+  }
+
+  function handleAction(action, el) {
+    if (!action) return false;
+    const sep = action.indexOf(':');
+    const name = sep === -1 ? action : action.slice(0, sep);
+    const arg = sep === -1 ? undefined : action.slice(sep + 1);
+
+    switch (name) {
+      case 'startSoloChallenge': return callGameFunction('startSoloChallenge');
+      case 'openHowToPlay': return callGameFunction('openHowToPlay');
+      case 'closeHowToPlay': return callGameFunction('closeHowToPlay');
+      case 'tapIntroSkip': return callGameFunction('tapIntroSkip');
+      case 'htpGoPrev': return callGameFunction('htpGoPrev');
+      case 'htpGoNext': return callGameFunction('htpGoNext');
+      case 'joinRoom': return callGameFunction('joinRoom');
+      case 'resetGame': return callGameFunction('resetGame');
+      case 'toggleOrientationLayout': return callGameFunction('toggleOrientationLayout');
+      case 'toggleFullScreen': return callGameFunction('toggleFullScreen');
+      case 'toggleDebugPanel': return callGameFunction('toggleDebugPanel');
+      case 'toggleDebugForceShape': return callGameFunction('toggleDebugForceShape');
+      case 'toggleDebugFragmentMode': return callGameFunction('toggleDebugFragmentMode');
+      case 'resetDebugDefaults': return callGameFunction('resetDebugDefaults');
+      case 'copyCurrentRoomId': return callGameFunction('copyCurrentRoomId');
+      case 'cancelRoomCreation': return callGameFunction('cancelRoomCreation');
+      case 'renderConnectPanelNull': return callGameFunction('renderConnectPanel', [null]);
+      case 'selectRoomMode': return callGameFunction('selectRoomMode', [arg, el]);
+      case 'enterSoloBothSidesMode': return callGameFunction('enterSoloBothSidesMode', [arg]);
+      case 'selectDebugShape': return callGameFunction('selectDebugShape', [arg]);
+    }
+    return false;
+  }
+
+  function bind() {
+    if (window.__uiBridgeBooted) return;
+    window.__uiBridgeBooted = true;
+
+    document.addEventListener('click', function (event) {
+      var el = event.target && event.target.closest
+        ? event.target.closest('[data-action]')
+        : null;
+      if (!el) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      handleAction(el.getAttribute('data-action'), el);
+    }, true);
+
+    document.addEventListener('touchend', function (event) {
+      var el = event.target && event.target.closest
+        ? event.target.closest('[data-action]')
+        : null;
+      if (!el) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      handleAction(el.getAttribute('data-action'), el);
+    }, { capture: true, passive: false });
+
+    console.log('[UI Bridge] installed');
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bind, { once: true });
+  } else {
+    bind();
+  }
+})();
+</script>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
+<style id="mobile-ui-event-fix">
+  #introSkipBtn,
+  #htpPrevBtn,
+  #htpNextBtn,
+  [data-action] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+</style>
+
+</head>
+<body>
+
+  <!-- Lobby Modal -->
+  <div id="lobbyOverlay" class="modal-overlay active">
+    <div class="modal-title">Tetrimess</div>
+    <div class="modal-desc">Choose a game mode, or type Room ID to join.</div>
+
+    <div class="lobby-row">
+      <div class="mode-substack-wrap" id="soloColumnWrap">
+        <div class="mode-substack-title" style="visibility:hidden;">Make Room (P1)</div>
+        <button class="mode-card c-i" data-action="startSoloChallenge">
+          <div class="mode-icon-blocks" id="iconSolo"></div>
+          <div class="mode-name">1 Player Mode</div>
+          <div class="mode-sub">Play alone. Reach the line to win!</div>
+        </button>
+        <button class="mode-card how-to-play-btn" data-action="openHowToPlay">
+          <div class="mode-icon-blocks" style="color:#cbbe93; font-weight:800;">?</div>
+          <div class="mode-name">How to Play</div>
+          <div class="mode-sub">Rules for every mode</div>
+        </button>
+      </div>
+
+      <div class="mode-substack-wrap">
+        <div class="mode-substack-title">Make Room (P1)</div>
+        <div class="mode-substack" id="modeSubstack">
+          <button class="mode-card c-t" data-mode="coop" data-action="selectRoomMode:coop">
+            <div class="mode-icon-blocks" id="iconCoop"></div>
+            <div class="mode-text">
+              <div class="mode-name">2 Players: Team Up</div>
+              <div class="mode-sub">Work together. Reach the line to win!</div>
+            </div>
+          </button>
+          <button class="mode-card c-o" data-mode="pvp-drops" data-action="selectRoomMode:pvp-drops">
+            <div class="mode-icon-blocks" id="iconPvpDrops"></div>
+            <div class="mode-text">
+              <div class="mode-name">2 Players: Versus</div>
+              <div class="mode-sub">First to drop 11 blocks loses.</div>
+            </div>
+          </button>
+          <button class="mode-card c-z" data-mode="pvp-score" data-action="selectRoomMode:pvp-score">
+            <div class="mode-icon-blocks" id="iconPvpScore"></div>
+            <div class="mode-text">
+              <div class="mode-name">2 Players: Topple</div>
+              <div class="mode-sub">Smaller area. Drop blocks to score. First to 35 wins!</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <div class="mode-substack-wrap">
+        <div class="mode-substack-title" style="visibility:hidden;">Make Room (P1)</div>
+        <div class="connect-panel" id="connectPanel"><div class="connect-placeholder">For 2 players, P1 must<br>choose a mode first.</div></div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:24px;">
+      <input type="text" id="roomInput" class="room-input" placeholder="0-9" maxlength="2" inputmode="numeric" pattern="[0-9]{1,2}">
+      <button class="btn-restart" style="background:#059669;" data-action="joinRoom">Join Room (P2)</button>
+    </div>
+
+    <div class="modal-desc" id="lobbyStatus" style="margin-top:16px;"></div>
+  </div>
+
+  <div class="layout-wrapper">
+    <!-- 手機版頂部：P1與P2左右均分對峙 (頂到最上方) -->
+    <div id="top-players-container" class="pregame-hidden">
+      <div id="p1Card" class="player-card active-p1">
+        <div class="player-title" id="p1Title">Player 1</div>
+        <div class="drop-status">Drops: <span id="p1ScoreBadge" class="drop-badge">0 / 11</span></div>
+      </div>
+      <div id="p2Card" class="player-card">
+        <div class="player-title" id="p2Title">Player 2</div>
+        <div class="drop-status">Drops: <span id="p2ScoreBadge" class="drop-badge">0 / 11</span></div>
+      </div>
+    </div>
+
+    <!-- 手機版次要：5選3手牌區 (緊接在玩家下方) -->
+    <div class="hand-container-vertical">
+      <div class="card" id="card0"><canvas width="60" height="60"></canvas></div>
+      <div class="card" id="card1"><canvas width="60" height="60"></canvas></div>
+      <div class="card" id="card2"><canvas width="60" height="60"></canvas></div>
+      <div class="card" id="card3"><canvas width="60" height="60"></canvas></div>
+      <div class="card" id="card4"><canvas width="60" height="60"></canvas></div>
+    </div>
+
+    <!-- 遊戲畫布與混合控制按鈕區 -->
+    <div class="center-panel">
+      <div class="game-container">
+        <div id="topRightTimer" class="top-right-timer"><span>Safe In:</span> <span id="timerVal">3</span>s</div>
+        <!-- 畫布改為 336 寬 (對應 10 格底座 + 左右各 2 格寬度，即總共 14 格寬的視野) -->
+        <canvas id="gameCanvas" width="336" height="600"></canvas>
+
+        <div id="modalOverlay" class="modal-overlay">
+          <div id="modalTitle" class="modal-title">P1 Wins!</div>
+          <div id="modalDesc" class="modal-desc">P2 dropped too many blocks.</div>
+          <button class="btn-restart" id="btnRestart" data-action="resetGame">Play Again</button>
+        </div>
+      </div>
+
+      <!-- 操作按鈕區：直式時位於遊玩區下方；橫式時固定在畫面左右兩側 -->
+      <div id="mobile-controls-row" class="pregame-hidden">
+        <!-- 左側 4 個按鈕 (2x2)：左上=旋轉 右上=確定 左下=← 右下=→ -->
+        <div id="mobile-controls-left">
+          <div id="mc-rotate-top" class="mc-btn">↻</div>
+          <div id="mc-drop-left" class="mc-btn">✓</div>
+          <div id="mc-left" class="mc-btn">←</div>
+          <div id="mc-right" class="mc-btn">→</div>
+        </div>
+
+        <!-- 右側 4 個按鈕 (2x2)：左上=直橫式切換 右上=旋轉 左下=全螢幕 右下=確定 -->
+        <div id="mobile-controls-right">
+          <div id="mc-orientation" class="mc-btn">⤢</div>
+          <div id="mc-rotate" class="mc-btn">↻</div>
+          <div id="mc-fullscreen" class="mc-btn">🔲</div>
+          <div id="mc-drop" class="mc-btn">✓</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 電腦版側邊面板 (手機自動隱藏) -->
+    <div class="side-panel left" style="display:none;">
+      <div id="p1TurnTimer" class="turn-timer-badge">7</div>
+      <div id="statusCard" class="status-card">Choosing a block...</div>
+      <div class="info-box">
+        <h4>How to Play</h4>
+        <div><span class="key">←</span> <span class="key">→</span> <span class="key">↑</span> <span class="key">↓</span> Move</div>
+        <div style="margin-top: 4px;"><span class="key">R</span> Rotate</div>
+        <div style="margin-top: 4px;"><span class="key">E</span> Select / Drop</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右下角微型工具按鈕：直橫式切換 / 全螢幕 (手機模式下已整合進主控制區，此處僅供桌面/備用) -->
+  <div id="floating-tools">
+    <div class="float-btn" data-action="toggleOrientationLayout" title="切換直式/橫式">⤢</div>
+    <div class="float-btn" data-action="toggleFullScreen" title="全螢幕">🔲</div>
+  </div>
+
+  <!-- 98：多數值測試模式。單一按鈕開/關，面板一律全螢幕顯示，不會跟任何遊戲版面重疊 -->
+  <div id="debugToggleBtn" data-action="toggleDebugPanel" title="數值測試面板">🧪</div>
+  <div id="debugPanel"></div>
+
+  <!-- 開局前 10 秒過場說明畫面 -->
+  <div id="gameIntroOverlay" class="game-intro-overlay">
+    <div class="game-intro-countdown"><span id="introCountdownVal">10</span>s</div>
+    <div class="game-intro-content">
+      <div class="intro-illust-box" id="gameIntroIllustration"></div>
+      <div class="game-intro-tagline" id="gameIntroTagline">Reach the Line</div>
+    </div>
+    <div class="game-intro-skip" id="introSkipBtn" data-action="tapIntroSkip">Skip ⏭</div>
+  </div>
+
+  <div id="howToPlayOverlay">
+    <div class="htp-modal">
+      <div class="htp-close" data-action="closeHowToPlay">✕</div>
+      <div class="htp-body">
+
+        <div class="htp-page active" data-page="1">
+          <div class="htp-page-tag">Page 1 / 3</div>
+          <div class="htp-page-title">🧱 Solo &amp; Team Up</div>
+          <div class="htp-section">
+            <h4>Goal</h4>
+            <p>Reach the red line without toppling. That's a win!</p>
+          </div>
+          <div class="htp-section">
+            <h4>1 Player</h4>
+            <p>Stack alone.</p>
+          </div>
+          <div class="htp-section">
+            <h4>Team Up</h4>
+            <p>Share one stack. Work together.</p>
+          </div>
+        </div>
+
+        <div class="htp-page" data-page="2">
+          <div class="htp-page-tag">Page 2 / 3</div>
+          <div class="htp-page-title">⚔️ Versus</div>
+          <div class="htp-section">
+            <h4>Goal</h4>
+            <p>Take turns dropping blocks. 11 dropped off the edge = you lose.</p>
+          </div>
+          <div class="htp-section">
+            <h4>"Safe In" Countdown</h4>
+            <p>Blocks get a few seconds to settle before your turn ends.</p>
+          </div>
+          <div class="htp-highlight-box">
+            <span class="htp-warn">⚠️</span> A block can fall <b>late</b>. If it falls after the turn has passed, <span class="htp-warn">it counts for whoever's turn it is then</span> — not who dropped it!
+          </div>
+        </div>
+
+        <div class="htp-page" data-page="3">
+          <div class="htp-page-tag">Page 3 / 3</div>
+          <div class="htp-page-title">🏆 Topple</div>
+          <div class="htp-section">
+            <h4>Goal</h4>
+            <p>Knock blocks off to score. First to 35 points wins.</p>
+          </div>
+          <div class="htp-section">
+            <h4>Scoring</h4>
+            <p>Score = <b>cells</b> that fall, not blocks.</p>
+          </div>
+          <div class="htp-section">
+            <h4>3-Strike Timer</h4>
+            <ul>
+              <li><b>1st</b> time-out: free.</li>
+              <li><b>2nd</b>: −1 point.</li>
+              <li><b>3rd</b>: you lose.</li>
+            </ul>
+          </div>
+          <div class="htp-highlight-box">
+            <span class="htp-warn">⚠️</span> Same as Versus — a <b>late</b> fall counts for whoever's turn it is then, not who caused it!
+          </div>
+        </div>
+
+      </div>
+      <div class="htp-nav">
+        <div class="htp-nav-btn" id="htpPrevBtn" data-action="htpGoPrev">‹ Prev</div>
+        <div class="htp-dots">
+          <span class="htp-dot active" data-dot="1"></span>
+          <span class="htp-dot" data-dot="2"></span>
+          <span class="htp-dot" data-dot="3"></span>
+        </div>
+        <div class="htp-nav-btn" id="htpNextBtn" data-action="htpGoNext">Next ›</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// 開發用：只寫進瀏覽器 console，不佔用畫面（原本除錯用的可視面板已移除）
+function debugLog(msg, isError) {
+  try { if (isError) console.error('[LOG]', msg); else console.log('[LOG]', msg); } catch (e) {}
+}
+window.addEventListener('error', function (e) {
+  debugLog('JS ERROR: ' + e.message + '  @' + (e.filename ? e.filename.split('/').pop() : '?') + ':' + e.lineno + ':' + e.colno, true);
+});
+window.addEventListener('unhandledrejection', function (e) {
+  debugLog('PROMISE REJECTED: ' + (e.reason && e.reason.message ? e.reason.message : e.reason), true);
+});
+debugLog('Page script started loading.');
+
+const WORKER_SOURCE = `
+  try {
+    importScripts('https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js');
+  } catch (err) {
+    postMessage({ type: 'ERROR', message: 'Failed to load Matter.js: ' + err.message });
+    throw err;
+  }
+  if (typeof Matter === 'undefined') {
+    postMessage({ type: 'ERROR', message: 'Matter object not found' });
+  }
+
+  const TILE_SIZE = 24, CANVAS_WIDTH = 336, CANVAS_HEIGHT = 600, INITIAL_BASE_Y = CANVAS_HEIGHT - (2 * TILE_SIZE);
+
+  const SHAPES_DATABASE = [
+    { name: 'I', color: '#8ca1ab', matrix: [[1,1,1,1]] }, { name: 'O', color: '#af9a92', matrix: [[1,1],[1,1]] },
+    { name: 'T', color: '#9ead9d', matrix: [[0,1,0],[1,1,1]] }, { name: 'S', color: '#c6b7b2', matrix: [[0,1,1],[1,1,0]] },
+    { name: 'Z', color: '#cbbe93', matrix: [[1,1,0],[0,1,1]] }, { name: 'J', color: '#78909c', matrix: [[1,0,0],[1,1,1]] },
+    { name: 'L', color: '#ddd4d0', matrix: [[0,0,1],[1,1,1]] }, { name: 'Plus', color: '#adadad', matrix: [[0,1,0],[1,1,1],[0,1,0]] },
+    { name: 'LongL', color: '#8c7e73', matrix: [[1,0],[1,0],[1,0],[1,1]] }, { name: 'U', color: '#9f45b755', matrix: [[1,0,1],[1,1,1]] },
+    { name: 'SmallL', color: '#de3d7855', matrix: [[1,0],[1,1]] }, { name: 'Dot', color: '#e5e5e5', matrix: [[1]] },
+    { name: 'Domino', color: '#9e847a', matrix: [[1,1]] }, { name: 'Line3', color: '#bbbf4b55', matrix: [[1,1,1]] },
+    { name: 'BigCorner', color: '#ea653c55', matrix: [[1,0,0],[1,0,0],[1,1,1]] }
+  ];
+
+  const ADVANCED_SHAPE_NAMES = ['L', 'Plus', 'LongL']; const ADVANCED_SHAPE_UNLOCK_COUNT = 15; let totalPlacementCount = 0;
+  const I_SHAPE_MIN_GAP = 5; let drawCount = 0; let lastIDrawnAt = -Infinity;
+  const DOT_PAIR_TRIGGER_WEIGHT = 1; const DOT_PAIR_MIN_GAP = 6; let pendingDotCount = 0;
+  let drawsSinceLastDotPair = Infinity;
+  const LIGHTNING_WEIGHT = 1.3;
+  function shapeWeight(s) { return (s.name === 'S' || s.name === 'Z') ? LIGHTNING_WEIGHT : 1; }
+
+  const { Engine, Bodies, Composite, Body, Events } = Matter;
+  const engine = Engine.create({ positionIterations: 18, velocityIterations: 18, enableSleeping: false, gravity: { x: 0, y: 1.2, scale: 0.001 } });
+
+  let baseFriction = 1.81, baseFrictionStatic = 2.21, blockFriction = 1.26, blockFrictionStatic = 1.46;
+  let sharedFrictionAir = 0.06; let sharedDensity = 0.002; let physicsSubsteps = 2; let forcedShape = null;
+  let baseShrinkValue = 0.3; // 只影響起始基座，跟掉落方塊的 SHRINK(0.3，寫死在 createPhysicsBodyFromMatrix) 是分開的兩件事
+  let fragmentAllBlocks = false; // 98 測試模式：開啟後，掉落方塊每一格都獨立成 1x1 剛體，不做相鄰合併
+
+  let currentPlayer = 1, gameState = 'SELECT_CARD', playerDrops = { 1: 0, 2: 0 }, lastDropWarningMsg = '';
+  let gameMode = 'pvp-drops';
+  let sharedDropCount = 0, playerScores = { 1: 0, 2: 0 };
+  const PVP_SCORE_TARGET = 35;
+  // Solo / Team Up 過關（壓線且撐過穩定倒數）時隨機挑一句慶祝語
+  const SUCCESS_MESSAGES = [
+    'Amazing Success', 'Tremendous Success', 'Awesome Success', 'Epic Success', 'Solid Success',
+    'Massive Success', 'Total Success', 'Brilliant Success', 'Stellar Success', 'Flawless Success',
+    'Legendary Success', 'Smashing Success', 'Glorious Success', 'Mighty Success', 'Perfect Success',
+    'Sweet Success', 'Roaring Success', 'Dazzling Success', 'Shocking Success', 'Absolute Success',
+    'Wild Success', 'Golden Success', 'Ridiculous Success', 'Spectacular Success', 'Unstoppable Success',
+    'Heroic Success', 'Suspicious Success', 'Towering Success', 'Colossal Success', 'Narrow Success'
+  ];
+  let playerTimeoutStrikes = { 1: 0, 2: 0 }; // 超時罰則獨立計數，跟 playerScores 分開，不共用輸分門檻
+  const MOVE_RANGE_SHRINK = 4 * TILE_SIZE; const TURN_TIME_LIMIT_MS = 60000;
+  let turnStartTime = 0;
+  let sharedHand = [], selectedCardIndex = 0, activeShape = null, activeMatrix = null;
+  let posX = CANVAS_WIDTH / 2, posY = 200, countdownTimer = null, countdownValue = 3;
+  let placedBodies = [], currentDroppedBody = null, hasTouched = false, touchTime = 0, stableSince = null;
+  let modalTitle = '', modalDesc = '';
+
+  Events.on(engine, 'collisionStart', (event) => {
+    if (gameState === 'DROP_WAIT' && !hasTouched && currentDroppedBody) {
+      const parts = currentDroppedBody.parts;
+      event.pairs.forEach(pair => {
+        if (parts.includes(pair.bodyA) || parts.includes(pair.bodyB)) {
+          hasTouched = true; touchTime = Date.now(); stableSince = null; stabilitySnapshot = null;
+        }
+      });
+    }
+  });
+
+  // 底座改為 10 格寬（配合 336 寬度：左右各留兩格寬度空間）
+  const BASE_LEFT_X = CANVAS_WIDTH / 2 - (10 * TILE_SIZE) / 2;
+  function isStraightLineMatrix(matrix) { const r = matrix.length; const c = matrix[0].length; if (r !== 1 && c !== 1) return false; for (let i = 0; i < r; i++) for (let j = 0; j < c; j++) if (matrix[i][j] !== 1) return false; return true; }
+  function snapToGrid(px, cols) { const hw = (cols * TILE_SIZE) / 2; const le = px - hw; const sle = BASE_LEFT_X + Math.round((le - BASE_LEFT_X) / TILE_SIZE) * TILE_SIZE; return sle + hw; }
+  function cloneShape(template) { return { ...template, matrix: JSON.parse(JSON.stringify(template.matrix)) }; }
+
+  function getRandomShape() {
+    drawCount++;
+    if (forcedShape) return cloneShape(forcedShape);
+    if (pendingDotCount > 0) {
+      pendingDotCount--;
+      if (pendingDotCount === 0) drawsSinceLastDotPair = 0;
+      return cloneShape(SHAPES_DATABASE.find(s => s.name === 'Dot'));
+    }
+    let normalPool = (totalPlacementCount >= ADVANCED_SHAPE_UNLOCK_COUNT ? SHAPES_DATABASE : SHAPES_DATABASE.filter(s => !ADVANCED_SHAPE_NAMES.includes(s.name))).filter(s => s.name !== 'Dot');
+    if (drawCount - lastIDrawnAt < I_SHAPE_MIN_GAP) normalPool = normalPool.filter(s => s.name !== 'I');
+    const dotPairAvailable = drawsSinceLastDotPair >= DOT_PAIR_MIN_GAP;
+    const normalPoolWeight = normalPool.reduce((sum, s) => sum + shapeWeight(s), 0);
+    const totalWeight = normalPoolWeight + (dotPairAvailable ? DOT_PAIR_TRIGGER_WEIGHT : 0);
+    let roll = Math.random() * totalWeight;
+    if (dotPairAvailable && roll < DOT_PAIR_TRIGGER_WEIGHT) { pendingDotCount = 1; return cloneShape(SHAPES_DATABASE.find(s => s.name === 'Dot')); }
+    roll -= dotPairAvailable ? DOT_PAIR_TRIGGER_WEIGHT : 0;
+    let template = normalPool[normalPool.length - 1];
+    for (const s of normalPool) { const w = shapeWeight(s); if (roll < w) { template = s; break; } roll -= w; }
+    if (template.name === 'I') lastIDrawnAt = drawCount;
+    drawsSinceLastDotPair++;
+    return cloneShape(template);
+  }
+
+  function rotateMatrixClockwise(matrix) {
+    const rows = matrix.length; const cols = matrix[0].length;
+    const result = Array.from({ length: cols }, () => Array(rows).fill(0));
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) result[c][rows - 1 - r] = matrix[r][c];
+    return result;
+  }
+
+  function getHighestY() { let minY = CANVAS_HEIGHT - (2 * TILE_SIZE); placedBodies.forEach(b => { if (!b.isStatic) b.vertices.forEach(v => { if (v.y < minY) minY = v.y; }); }); return minY; }
+  function updateSpawnY() {
+    const shapeRows = activeMatrix ? activeMatrix.length : 1;
+    const halfHeight = (shapeRows * TILE_SIZE) / 2;
+    posY = Math.max(halfHeight + 10, getHighestY() - (2 * TILE_SIZE) - halfHeight);
+  }
+
+  const STATIONARY_HOLD_MS = 1000; const STATIONARY_DRIFT_TOLERANCE_PX = 1.5; const STATIONARY_DRIFT_TOLERANCE_RAD = 0.02; let stabilitySnapshot = null;
+  function captureStabilitySnapshot() { stabilitySnapshot = placedBodies.filter(b => !b.isStatic).map(b => ({ body: b, x: b.position.x, y: b.position.y, angle: b.angle })); }
+  function hasDriftedBeyondTolerance() {
+    if (!stabilitySnapshot) return false;
+    for (const snap of stabilitySnapshot) {
+      if (Math.hypot(snap.body.position.x - snap.x, snap.body.position.y - snap.y) > STATIONARY_DRIFT_TOLERANCE_PX || Math.abs(snap.body.angle - snap.angle) > STATIONARY_DRIFT_TOLERANCE_RAD) return true;
+    }
+    return false;
+  }
+  function isStrictlyStationary() {
+    for (let b of placedBodies) {
+      if (!b.isStatic && (Math.hypot(b.velocity.x, b.velocity.y) > 0.03 || Math.abs(b.angularVelocity) > 0.03)) { stableSince = null; stabilitySnapshot = null; return false; }
+    }
+    if (stableSince === null) { stableSince = Date.now(); captureStabilitySnapshot(); return false; }
+    if (hasDriftedBeyondTolerance()) { stableSince = Date.now(); captureStabilitySnapshot(); return false; }
+    return (Date.now() - stableSince) >= STATIONARY_HOLD_MS;
+  }
+
+  function createPhysicsBodyFromMatrix(x, y, matrix, color, isStatic = false) {
+    const rows = matrix.length; const cols = matrix[0].length;
+    const fr = isStatic ? baseFriction : blockFriction;
+    const frS = isStatic ? baseFrictionStatic : blockFrictionStatic;
+    
+    const SHRINK = 0.3; 
+
+    if (!fragmentAllBlocks && isStraightLineMatrix(matrix)) {
+      const body = Bodies.rectangle(x, y, (cols * TILE_SIZE) - SHRINK, (rows * TILE_SIZE) - SHRINK, { isStatic, friction: fr, frictionStatic: frS, frictionAir: sharedFrictionAir, restitution: 0, density: sharedDensity });
+      body.customColor = color; body.tileGrid = { rows, cols, tileSize: TILE_SIZE }; Composite.add(engine.world, body); return body;
+    }
+    const offsetX = (cols * TILE_SIZE) / 2; const offsetY = (rows * TILE_SIZE) / 2;
+
+    // 98 測試模式開關：每一格都各自獨立成一個 1x1 剛體，不做任何相鄰合併（跟長條/單格混合模式互斥）
+    if (fragmentAllBlocks) {
+      const finalParts = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (matrix[r][c] === 1) {
+            const box = Bodies.rectangle(x + (c * TILE_SIZE + TILE_SIZE / 2) - offsetX, y + (r * TILE_SIZE + TILE_SIZE / 2) - offsetY, TILE_SIZE - SHRINK, TILE_SIZE - SHRINK, {});
+            box.tileCount = 1; box.__row = r; box.__col = c; finalParts.push(box);
+          }
+        }
+      }
+      const compoundBody = Body.create({ parts: finalParts, isStatic, friction: fr, frictionStatic: frS, frictionAir: sharedFrictionAir, restitution: 0, density: sharedDensity });
+      compoundBody.customColor = color; Composite.add(engine.world, compoundBody); return compoundBody;
+    }
+
+    const parts = [];
+
+    for (let r = 0; r < rows; r++) {
+      let c = 0;
+      while (c < cols) {
+        if (matrix[r][c] === 1) {
+          const runStart = c; while (c < cols && matrix[r][c] === 1) c++;
+          const runLength = c - runStart; const runWidth = runLength * TILE_SIZE;
+          const box = Bodies.rectangle(x + (runStart * TILE_SIZE + runWidth / 2) - offsetX, y + (r * TILE_SIZE + TILE_SIZE / 2) - offsetY, runWidth - SHRINK, TILE_SIZE - SHRINK, {});
+          box.tileCount = runLength; box.__row = r; box.__col = runStart; parts.push(box);
+        } else c++;
+      }
+    }
+
+    const singleCellsByCol = {};
+    parts.forEach(p => {
+      if (p.tileCount === 1) {
+        (singleCellsByCol[p.__col] = singleCellsByCol[p.__col] || []).push(p);
+      }
+    });
+    const removeSet = new Set();
+    const verticalParts = [];
+    Object.values(singleCellsByCol).forEach(list => {
+      list.sort((a, b) => a.__row - b.__row);
+      let i = 0;
+      while (i < list.length) {
+        let j = i;
+        while (j + 1 < list.length && list[j + 1].__row === list[j].__row + 1) j++;
+        const runLen = j - i + 1;
+        if (runLen >= 2) {
+          const first = list[i], last = list[j];
+          const vbox = Bodies.rectangle(first.position.x, (first.position.y + last.position.y) / 2, TILE_SIZE - SHRINK, (runLen * TILE_SIZE) - SHRINK, {});
+          vbox.tileCount = runLen; vbox.vertical = true; verticalParts.push(vbox);
+          for (let k = i; k <= j; k++) removeSet.add(list[k]);
+        }
+        i = j + 1;
+      }
+    });
+    const finalParts = parts.filter(p => !removeSet.has(p)).concat(verticalParts);
+
+    const compoundBody = Body.create({ parts: finalParts, isStatic, friction: fr, frictionStatic: frS, frictionAir: sharedFrictionAir, restitution: 0, density: sharedDensity });
+    compoundBody.customColor = color; Composite.add(engine.world, compoundBody); return compoundBody;
+  }
+
+  function createFragmentedBase() {
+    const totalWidth = 10 * TILE_SIZE;
+    const startX = CANVAS_WIDTH / 2 - totalWidth / 2 + TILE_SIZE / 2;
+    const endX = CANVAS_WIDTH / 2 + totalWidth / 2 - TILE_SIZE / 2;
+    const topY = INITIAL_BASE_Y - TILE_SIZE / 2;    // 柱子（單層高，回到最原始的高度）
+    const bottomY = INITIAL_BASE_Y + TILE_SIZE / 2; // 地板列（位置不變）
+    const cellSize = TILE_SIZE - baseShrinkValue;
+
+    // 最原始的基座外型：柱子只有單層高
+    const leftWall = Bodies.rectangle(startX, topY, cellSize, cellSize, {});
+    leftWall.tileCount = 1; leftWall.vertical = true;
+    const rightWall = Bodies.rectangle(endX, topY, cellSize, cellSize, {});
+    rightWall.tileCount = 1; rightWall.vertical = true;
+
+    // 地板：全單格方塊構成——10 個獨立 1x1 方塊
+    const floorCells = [];
+    for (let i = 0; i < 10; i++) {
+      const cellX = startX + i * TILE_SIZE;
+      const cell = Bodies.rectangle(cellX, bottomY, cellSize, cellSize, {});
+      cell.tileCount = 1; cell.vertical = false; cell.__row = 1; cell.__col = i;
+      floorCells.push(cell);
+    }
+
+    const baseBody = Body.create({
+      parts: [leftWall, rightWall, ...floorCells],
+      isStatic: true, 
+      friction: baseFriction, 
+      frictionStatic: baseFrictionStatic, 
+      frictionAir: sharedFrictionAir, 
+      restitution: 0,
+      density: sharedDensity
+    });
+    baseBody.customColor = '#546e7a';
+    baseBody.isBaseBody = true; // 標記起來，之後 98 模式調整 shrink 時才能找到並重建
+    Composite.add(engine.world, baseBody);
+    return [baseBody];
+  }
+
+  // 98 模式調整「基座 Shrink」時，因為是改動大小(幾何形狀)，不是單純物理係數，
+  // Matter.js 沒辦法對既有剛體直接改尺寸，所以整個移除、用新的 shrink 值重建一次。
+  function rebuildBase() {
+    const oldBase = placedBodies.find(b => b.isBaseBody);
+    if (oldBase) {
+      Composite.remove(engine.world, oldBase);
+      placedBodies = placedBodies.filter(b => b !== oldBase);
+    }
+    placedBodies.push(...createFragmentedBase());
+  }
+
+  function getBodyCellCount(b) {
+    if (b.tileGrid) return b.tileGrid.rows * b.tileGrid.cols;
+    const parts = b.parts.length > 1 ? b.parts.slice(1) : b.parts;
+    let total = 0; parts.forEach(p => { total += (p.tileCount || 1); }); return total;
+  }
+
+  function initGame(mode) {
+    gameMode = mode || gameMode || 'pvp-drops';
+    placedBodies.forEach(b => Composite.remove(engine.world, b)); placedBodies = [];
+    currentPlayer = 1; playerDrops = { 1: 0, 2: 0 }; sharedDropCount = 0; playerScores = { 1: 0, 2: 0 }; playerTimeoutStrikes = { 1: 0, 2: 0 }; lastDropWarningMsg = ''; gameState = 'SELECT_CARD'; selectedCardIndex = 0; currentDroppedBody = null; hasTouched = false; stableSince = null; stabilitySnapshot = null; totalPlacementCount = 0; drawCount = 0; lastIDrawnAt = -Infinity; pendingDotCount = 0; drawsSinceLastDotPair = Infinity;
+    modalTitle = ''; modalDesc = '';
+    turnStartTime = Date.now();
+    sharedHand = [getRandomShape(), getRandomShape(), getRandomShape(), getRandomShape(), getRandomShape()];
+    placedBodies.push(...createFragmentedBase());
+  }
+
+  function dropCurrentBlock() {
+    gameState = 'DROP_WAIT'; hasTouched = false; touchTime = 0; stableSince = null; stabilitySnapshot = null; totalPlacementCount++;
+    currentDroppedBody = createPhysicsBodyFromMatrix(posX, posY, activeMatrix, activeShape.color, false); placedBodies.push(currentDroppedBody);
+  }
+
+  function processFallenBlocks() {
+    const fallen = [];
+    placedBodies = placedBodies.filter(b => { if (b.position.y > CANVAS_HEIGHT + 30 || b.position.x < -80 || b.position.x > CANVAS_WIDTH + 80) { fallen.push(b); Composite.remove(engine.world, b); return false; } return true; });
+    if (fallen.length === 0) return;
+
+    if (gameMode === 'solo') {
+      playerDrops[1] += fallen.length;
+      if (gameState !== 'GAME_OVER' && playerDrops[1] >= 11) endGame('Game Over', 'Dropped 11 blocks. Safe blocks: ' + Math.max(0, totalPlacementCount - playerDrops[1]));
+      else lastDropWarningMsg = '⚠️ Drop! (' + playerDrops[1] + '/11)';
+    } else if (gameMode === 'coop') {
+      sharedDropCount += fallen.length;
+      if (gameState !== 'GAME_OVER' && sharedDropCount >= 11) endGame('You Lose!', 'You dropped 11 blocks together!');
+      else lastDropWarningMsg = '⚠️ Drop! (Team: ' + sharedDropCount + '/11)';
+    } else if (gameMode === 'pvp-score') {
+      let totalCells = 0;
+      fallen.forEach(b => { totalCells += getBodyCellCount(b); });
+      playerScores[currentPlayer] += totalCells;
+      lastDropWarningMsg = '✨ P' + currentPlayer + ' scored ' + totalCells + ' pts! (Total: ' + playerScores[currentPlayer] + ')';
+      if (gameState !== 'GAME_OVER' && playerScores[currentPlayer] >= PVP_SCORE_TARGET) {
+        endGame('P' + currentPlayer + ' Wins!', 'P' + currentPlayer + ' reached ' + PVP_SCORE_TARGET + ' points!');
+      }
+    } else {
+      playerDrops[currentPlayer] += fallen.length;
+      if (gameState !== 'GAME_OVER' && playerDrops[currentPlayer] >= 11) endGame('P' + (currentPlayer === 1 ? 2 : 1) + ' Wins!', 'P' + currentPlayer + ' dropped 11 blocks!');
+      else lastDropWarningMsg = '⚠️ P' + currentPlayer + ' Drop! (' + playerDrops[currentPlayer] + '/11)';
+    }
+  }
+
+  function finishTurn() {
+    if (gameState === 'GAME_OVER') return;
+    currentDroppedBody = null; hasTouched = false;
+    if (getHighestY() <= 60) {
+      if (gameMode === 'solo' || gameMode === 'coop') {
+        const msg = SUCCESS_MESSAGES[Math.floor(Math.random() * SUCCESS_MESSAGES.length)];
+        endGame(msg, gameMode === 'coop' ? 'You reached the line together!' : 'You reached the line!');
+      } else {
+        endGame('Draw!', 'The tower is too high!');
+      }
+      return;
+    }
+
+    if (gameMode !== 'solo') currentPlayer = currentPlayer === 1 ? 2 : 1;
+    selectedCardIndex = 0; gameState = 'SELECT_CARD';
+    turnStartTime = Date.now();
+  }
+
+  function handleTurnTimeout() {
+    if (gameState === 'GAME_OVER') return;
+    const p = currentPlayer;
+    playerTimeoutStrikes[p] = (playerTimeoutStrikes[p] || 0) + 1;
+    const strikes = playerTimeoutStrikes[p];
+
+    if (strikes >= 3) {
+      lastDropWarningMsg = '';
+      endGame('P' + (p === 1 ? 2 : 1) + ' Wins!', 'P' + p + ' timed out 3 times!');
+      return;
+    }
+
+    const penaltyByStrike = { 1: 0, 2: 1 };
+    const penalty = penaltyByStrike[strikes] || 0;
+    if (penalty > 0) playerScores[p] -= penalty;
+
+    if (strikes === 1) lastDropWarningMsg = '⏰ P' + p + ' Time Out! (1st free pass, no penalty)';
+    else lastDropWarningMsg = '⚠️ P' + p + ' Time Out! -1 pt. Next time-out = LOSE!';
+
+    // 方塊留在原地原位置、不換人：只重置計時器讓同一位玩家繼續嘗試
+    turnStartTime = Date.now();
+  }
+
+  function endGame(title, desc) { gameState = 'GAME_OVER'; modalTitle = title; modalDesc = desc; }
+
+  function handleGameInput(key) {
+    if (gameState === 'GAME_OVER' || gameState === 'DROP_WAIT') return;
+    if (gameState === 'SELECT_CARD') {
+      if (key === 'ARROWUP' || key === 'ARROWLEFT' || key === 'A') selectedCardIndex = (selectedCardIndex + 2) % 3;
+      else if (key === 'ARROWDOWN' || key === 'ARROWRIGHT' || key === 'D') selectedCardIndex = (selectedCardIndex + 1) % 3;
+      else if (key === 'E' || key === 'ENTER') {
+        const chosenIndex = selectedCardIndex; activeShape = sharedHand[chosenIndex]; activeMatrix = JSON.parse(JSON.stringify(activeShape.matrix));
+        posX = snapToGrid(CANVAS_WIDTH / 2, activeMatrix[0].length); updateSpawnY(); gameState = 'POSITIONING'; lastDropWarningMsg = '';
+        sharedHand[chosenIndex] = sharedHand[3]; sharedHand[3] = sharedHand[4]; sharedHand[4] = getRandomShape();
+      }
+    } else if (gameState === 'POSITIONING') {
+      const shrink = (gameMode === 'pvp-score') ? MOVE_RANGE_SHRINK : 0;
+      const cols = activeMatrix[0].length;
+      const leftBound = snapToGrid((cols * TILE_SIZE) / 2 + 6 + shrink, cols);
+      const rightBound = snapToGrid(CANVAS_WIDTH - (cols * TILE_SIZE) / 2 - 6 - shrink, cols);
+      if (key === 'ARROWLEFT' || key === 'A') posX = Math.max(leftBound, snapToGrid(posX - TILE_SIZE, cols));
+      else if (key === 'ARROWRIGHT' || key === 'D') posX = Math.min(rightBound, snapToGrid(posX + TILE_SIZE, cols));
+      else if (key === 'R') {
+        activeMatrix = rotateMatrixClockwise(activeMatrix);
+        const newCols = activeMatrix[0].length;
+        const newLeftBound = snapToGrid((newCols * TILE_SIZE) / 2 + 6 + shrink, newCols);
+        const newRightBound = snapToGrid(CANVAS_WIDTH - (newCols * TILE_SIZE) / 2 - 6 - shrink, newCols);
+        posX = Math.min(newRightBound, Math.max(newLeftBound, snapToGrid(posX, newCols)));
+        updateSpawnY();
+      }
+      else if (key === 'E' || key === 'ENTER') { dropCurrentBlock(); }
+    }
+  }
+
+  function tick() {
+    for (let i = 0; i < physicsSubsteps; i++) Engine.update(engine, (1000 / 60) / physicsSubsteps);
+    placedBodies.forEach(b => { if (!b.isStatic) { const s = Math.hypot(b.velocity.x, b.velocity.y); if (s > 18) Body.setVelocity(b, { x: b.velocity.x * 18 / s, y: b.velocity.y * 18 / s }); } });
+    processFallenBlocks();
+
+    if (gameState === 'DROP_WAIT') {
+      if (!hasTouched) { if (currentDroppedBody && currentDroppedBody.position.y > CANVAS_HEIGHT + 30) finishTurn(); }
+      else {
+        const elapsed = Date.now() - touchTime;
+        const settleWindowMs = gameMode === 'pvp-score' ? 10000 : 4000; // Score 模式坍塌可能較久，多給一點時間再判定
+        if (elapsed < settleWindowMs) { if (isStrictlyStationary()) finishTurn(); }
+        else finishTurn();
+      }
+    } else if (gameMode === 'pvp-score' && (gameState === 'SELECT_CARD' || gameState === 'POSITIONING')) {
+      if (Date.now() - turnStartTime >= TURN_TIME_LIMIT_MS) handleTurnTimeout();
+    }
+
+    postMessage({
+      type: 'STATE',
+      gameState, currentPlayer, playerDrops, sharedHand, activeMatrix, activeShape,
+      posX, posY, countdownValue, selectedCardIndex, lastDropWarningMsg,
+      hasTouched, touchTime, modalTitle, modalDesc,
+      gameMode, sharedDropCount, playerScores, turnStartTime, playerTimeoutStrikes,
+      bodies: placedBodies.map(b => ({
+        id: b.id,
+        x: Math.round(b.position.x * 1000) / 1000, y: Math.round(b.position.y * 1000) / 1000,
+        angle: Math.round(b.angle * 1000) / 1000, color: b.customColor, tileGrid: b.tileGrid,
+        parts: b.parts.map(p => ({
+          x: Math.round(p.position.x * 1000) / 1000, y: Math.round(p.position.y * 1000) / 1000,
+          tileCount: p.tileCount, vertical: !!p.vertical,
+          vertices: p.vertices.map(v => ({ x: Math.round(v.x * 1000) / 1000, y: Math.round(v.y * 1000) / 1000 }))
+        }))
+      }))
+    });
+  }
+
+  self.onmessage = (e) => {
+    const msg = e.data;
+    if (msg.type === 'INIT') initGame(msg.mode);
+    else if (msg.type === 'KEY') handleGameInput(msg.key);
+    else if (msg.type === 'SET_FRICTION') {
+      baseFriction = msg.baseFriction; baseFrictionStatic = msg.baseFrictionStatic;
+      blockFriction = msg.blockFriction; blockFrictionStatic = msg.blockFrictionStatic;
+      sharedFrictionAir = msg.frictionAir;
+      sharedDensity = msg.density;
+      physicsSubsteps = Math.max(1, Math.round(msg.substeps));
+      engine.gravity.y = msg.gravity;
+      placedBodies.forEach(b => {
+        b.friction = b.isStatic ? baseFriction : blockFriction;
+        b.frictionStatic = b.isStatic ? baseFrictionStatic : blockFrictionStatic;
+        b.frictionAir = sharedFrictionAir;
+        if (!b.isStatic) Body.setDensity(b, sharedDensity);
+      });
+      // 基座 Shrink 改的是幾何大小，不是物理係數，只有真的變動時才整個重建，避免每次調別的滑桿也跟著重建
+      if (typeof msg.baseShrink === 'number' && msg.baseShrink !== baseShrinkValue) {
+        baseShrinkValue = msg.baseShrink;
+        rebuildBase();
+      }
+    }
+    else if (msg.type === 'SET_FORCED_SHAPE') {
+      forcedShape = msg.shape; 
+      if (forcedShape) {
+        for (let i = 0; i < sharedHand.length; i++) sharedHand[i] = cloneShape(forcedShape);
+      }
+    }
+    else if (msg.type === 'SET_FRAGMENT_MODE') {
+      fragmentAllBlocks = !!msg.on;
+    }
+    else if (msg.type === 'REFRESH_HAND') {
+      if (sharedHand.length >= 3) {
+        sharedHand[0] = getRandomShape();
+        sharedHand[1] = getRandomShape();
+        sharedHand[2] = getRandomShape();
+      }
+    }
+  };
+
+  setInterval(tick, 1000 / 60);
+`;
+
+let physicsWorker = null;
+let workerMsgCount = 0;
+
+// ============ 98：多數值測試模式的面板邏輯 ============
+// worker 內的 SHAPES_DATABASE 在 worker 字串裡，主執行緒另外複製一份同樣的清單，
+// 純粹用來讓面板知道有哪些形狀可以選、送 SET_FORCED_SHAPE 訊息時用。
+const DEBUG_SHAPES = [
+  { name: 'I', matrix: [[1,1,1,1]] }, { name: 'O', matrix: [[1,1],[1,1]] },
+  { name: 'T', matrix: [[0,1,0],[1,1,1]] }, { name: 'S', matrix: [[0,1,1],[1,1,0]] },
+  { name: 'Z', matrix: [[1,1,0],[0,1,1]] }, { name: 'J', matrix: [[1,0,0],[1,1,1]] },
+  { name: 'L', matrix: [[0,0,1],[1,1,1]] }, { name: 'Plus', matrix: [[0,1,0],[1,1,1],[0,1,0]] },
+  { name: 'LongL', matrix: [[1,0],[1,0],[1,0],[1,1]] }, { name: 'U', matrix: [[1,0,1],[1,1,1]] },
+  { name: 'SmallL', matrix: [[1,0],[1,1]] }, { name: 'Dot', matrix: [[1]] },
+  { name: 'Domino', matrix: [[1,1]] }, { name: 'Line3', matrix: [[1,1,1]] },
+  { name: 'BigCorner', matrix: [[1,0,0],[1,0,0],[1,1,1]] }
+];
+const DEBUG_DEFAULTS = {
+  gravity: 1.2, baseFriction: 1.81, baseFrictionStatic: 2.21,
+  blockFriction: 1.26, blockFrictionStatic: 1.46, frictionAir: 0.06,
+  density: 0.002, substeps: 2, baseShrink: 0.3
+};
+const DEBUG_FIELDS = [
+  { id: 'gravity', label: 'Gravity', min: 0, max: 3, step: 0.05 },
+  { id: 'baseFriction', label: 'Base Friction', min: 0, max: 5, step: 0.01 },
+  { id: 'baseFrictionStatic', label: 'Base Friction (Static)', min: 0, max: 5, step: 0.01 },
+  { id: 'blockFriction', label: 'Block Friction', min: 0, max: 5, step: 0.01 },
+  { id: 'blockFrictionStatic', label: 'Block Friction (Static)', min: 0, max: 5, step: 0.01 },
+  { id: 'frictionAir', label: 'Air Friction', min: 0, max: 0.3, step: 0.005 },
+  { id: 'density', label: 'Density', min: 0.0002, max: 0.02, step: 0.0002 },
+  { id: 'substeps', label: 'Substeps', min: 1, max: 8, step: 1 },
+  { id: 'baseShrink', label: 'Base Shrink (只影響起始基座)', min: 0, max: 0.5, step: 0.01 },
+];
+let debugForceShapeOn = false;
+let debugForcedShapeName = 'L'; // 預設就是你印象中的四格 L 型
+
+function buildDebugPanel() {
+  const panel = document.getElementById('debugPanel');
+  const rowsHtml = DEBUG_FIELDS.map(f => `
+    <div class="debug-row">
+      <label>${f.label} <span class="val" id="dbgVal-${f.id}">${DEBUG_DEFAULTS[f.id]}</span></label>
+      <input type="range" id="dbg-${f.id}" min="${f.min}" max="${f.max}" step="${f.step}"
+             value="${DEBUG_DEFAULTS[f.id]}" oninput="onDebugFieldInput('${f.id}')">
+    </div>`).join('');
+
+  const shapeButtonsHtml = DEBUG_SHAPES.map(s => `
+    <div class="debug-shape-btn${s.name === debugForcedShapeName ? ' selected' : ''}"
+         id="dbgShapeBtn-${s.name}" data-action="selectDebugShape:${s.name}">${s.name}</div>`).join('');
+
+  panel.innerHTML = `
+    <div class="debug-panel-inner">
+      <div class="debug-panel-title">🧪 Debug: Physics &amp; Shape Tuning</div>
+      <div class="debug-panel-sub">數值即改即生效；此面板全螢幕顯示，關閉後回到遊戲畫面。</div>
+
+      <div class="debug-section-title">Physics Values</div>
+      ${rowsHtml}
+
+      <div class="debug-section-title">Force Specific Shape</div>
+      <div id="dbgForceShapeToggle" class="debug-toggle-btn" data-action="toggleDebugForceShape">Forcing: OFF</div>
+      <div class="debug-shape-grid">${shapeButtonsHtml}</div>
+
+      <div class="debug-section-title">Block Structure（只影響掉落方塊，不影響基座）</div>
+      <div id="dbgFragmentModeToggle" class="debug-toggle-btn" data-action="toggleDebugFragmentMode">Fragment Mode: OFF (長條+單格混合)</div>
+
+      <div class="debug-actions">
+        <button class="btn-restart" style="background:#3f3f46;" data-action="resetDebugDefaults">Reset Defaults</button>
+        <button class="btn-restart" style="background:#4f46e5;" data-action="toggleDebugPanel">Close</button>
+      </div>
+    </div>
+  `;
+}
+
+function onDebugFieldInput(id) {
+  const el = document.getElementById('dbg-' + id);
+  const valEl = document.getElementById('dbgVal-' + id);
+  if (valEl) valEl.innerText = el.value;
+  sendDebugFriction();
+}
+
+function sendDebugFriction() {
+  if (!physicsWorker) return;
+  const v = id => { const el = document.getElementById('dbg-' + id); return el ? parseFloat(el.value) : DEBUG_DEFAULTS[id]; };
+  physicsWorker.postMessage({
+    type: 'SET_FRICTION',
+    gravity: v('gravity'),
+    baseFriction: v('baseFriction'),
+    baseFrictionStatic: v('baseFrictionStatic'),
+    blockFriction: v('blockFriction'),
+    blockFrictionStatic: v('blockFrictionStatic'),
+    frictionAir: v('frictionAir'),
+    density: v('density'),
+    substeps: v('substeps'),
+    baseShrink: v('baseShrink'),
+  });
+}
+
+function selectDebugShape(name) {
+  debugForcedShapeName = name;
+  document.querySelectorAll('.debug-shape-btn').forEach(b => b.classList.toggle('selected', b.id === 'dbgShapeBtn-' + name));
+  if (debugForceShapeOn) sendDebugForcedShape();
+}
+function toggleDebugForceShape() {
+  debugForceShapeOn = !debugForceShapeOn;
+  const btn = document.getElementById('dbgForceShapeToggle');
+  if (btn) { btn.innerText = debugForceShapeOn ? 'Forcing: ON (' + debugForcedShapeName + ')' : 'Forcing: OFF'; btn.classList.toggle('on', debugForceShapeOn); }
+  sendDebugForcedShape();
+}
+let debugFragmentModeOn = false;
+function toggleDebugFragmentMode() {
+  debugFragmentModeOn = !debugFragmentModeOn;
+  const btn = document.getElementById('dbgFragmentModeToggle');
+  if (btn) { btn.innerText = debugFragmentModeOn ? 'Fragment Mode: ON (全部單格)' : 'Fragment Mode: OFF (長條+單格混合)'; btn.classList.toggle('on', debugFragmentModeOn); }
+  if (physicsWorker) physicsWorker.postMessage({ type: 'SET_FRAGMENT_MODE', on: debugFragmentModeOn });
+}
+function sendDebugForcedShape() {
+  if (!physicsWorker) return;
+  if (debugForceShapeOn) {
+    const template = DEBUG_SHAPES.find(s => s.name === debugForcedShapeName);
+    physicsWorker.postMessage({ type: 'SET_FORCED_SHAPE', shape: template });
+  } else {
+    physicsWorker.postMessage({ type: 'SET_FORCED_SHAPE', shape: null });
+  }
+}
+
+function resetDebugDefaults() {
+  DEBUG_FIELDS.forEach(f => {
+    const el = document.getElementById('dbg-' + f.id);
+    const valEl = document.getElementById('dbgVal-' + f.id);
+    if (el) el.value = DEBUG_DEFAULTS[f.id];
+    if (valEl) valEl.innerText = DEBUG_DEFAULTS[f.id];
+  });
+  sendDebugFriction();
+}
+
+// 單一按鈕開/關；面板永遠全螢幕顯示，不會跟任何版面重疊或推擠
+function toggleDebugPanel() {
+  const panel = document.getElementById('debugPanel');
+  const btn = document.getElementById('debugToggleBtn');
+  const isOpening = !panel.classList.contains('active');
+  panel.classList.toggle('active', isOpening);
+  if (btn) btn.classList.toggle('panel-open', isOpening);
+}
+
+// ============ How to Play：三頁說明視窗 ============
+let htpCurrentPage = 1;
+const HTP_TOTAL_PAGES = 3;
+
+function openHowToPlay() {
+  debugLog('openHowToPlay(): clicked');
+  htpCurrentPage = 1;
+  htpRenderPage();
+  const el = document.getElementById('howToPlayOverlay');
+  if (!el) { debugLog('openHowToPlay(): #howToPlayOverlay NOT FOUND!', true); return; }
+  el.classList.add('active');
+  debugLog('openHowToPlay(): overlay active class added');
+}
+function closeHowToPlay() {
+  document.getElementById('howToPlayOverlay').classList.remove('active');
+}
+function htpGoPrev() { if (htpCurrentPage > 1) { htpCurrentPage--; htpRenderPage(); } }
+function htpGoNext() {
+  if (htpCurrentPage < HTP_TOTAL_PAGES) { htpCurrentPage++; htpRenderPage(); }
+  else closeHowToPlay(); // 第三頁的 Next 直接關閉視窗
+}
+function htpRenderPage() {
+  document.querySelectorAll('.htp-page').forEach(el => el.classList.toggle('active', parseInt(el.dataset.page) === htpCurrentPage));
+  document.querySelectorAll('.htp-dot').forEach(el => el.classList.toggle('active', parseInt(el.dataset.dot) === htpCurrentPage));
+  const prevBtn = document.getElementById('htpPrevBtn');
+  const nextBtn = document.getElementById('htpNextBtn');
+  prevBtn.classList.toggle('disabled', htpCurrentPage === 1);
+  nextBtn.innerText = htpCurrentPage === HTP_TOTAL_PAGES ? 'Done' : 'Next ›';
+  const body = document.querySelector('.htp-body');
+  if (body) body.scrollTop = 0;
+}
+
+function createPhysicsWorker() {
+  debugLog('createPhysicsWorker(): start');
+  const blob = new Blob([WORKER_SOURCE], { type: 'application/javascript' });
+  debugLog('createPhysicsWorker(): blob created, constructing Worker...');
+  physicsWorker = new Worker(URL.createObjectURL(blob));
+  debugLog('createPhysicsWorker(): Worker constructed OK');
+
+  physicsWorker.onerror = (e) => {
+    console.error('Worker Error:', e.message, e);
+    debugLog('Worker runtime error: ' + e.message, true);
+  };
+
+  physicsWorker.onmessage = (e) => {
+    if (e.data.type === 'ERROR') {
+      console.error('[Worker Error]', e.data.message);
+      debugLog('Worker init error: ' + e.data.message, true);
+      return;
+    }
+    if (e.data.type !== 'STATE') return;
+    const s = e.data;
+    gameState = s.gameState; currentPlayer = s.currentPlayer; playerDrops = s.playerDrops;
+    sharedHand = s.sharedHand; activeMatrix = s.activeMatrix; activeShape = s.activeShape;
+    posX = s.posX; posY = s.posY; countdownValue = s.countdownValue; selectedCardIndex = s.selectedCardIndex;
+    lastDropWarningMsg = s.lastDropWarningMsg; hasTouched = s.hasTouched; touchTime = s.touchTime;
+    modalTitle = s.modalTitle; modalDesc = s.modalDesc;
+    gameMode = s.gameMode; sharedDropCount = s.sharedDropCount; playerScores = s.playerScores; turnStartTime = s.turnStartTime;
+    playerTimeoutStrikes = s.playerTimeoutStrikes || { 1: 0, 2: 0 };
+    localBodies = s.bodies;
+
+    if (gameState === 'GAME_OVER') showModal(s.modalTitle, s.modalDesc);
+    else hideModal();
+
+    updateUI(); renderHandCards();
+
+    workerMsgCount++;
+    if (workerMsgCount % 2 === 0) broadcastState();
+    drawFrame();
+  };
+}
+
+function showModal(title, desc) {
+  document.getElementById('modalTitle').innerText = title;
+  document.getElementById('modalDesc').innerText = desc;
+  document.getElementById('modalOverlay').classList.add('active');
+}
+function hideModal() { document.getElementById('modalOverlay').classList.remove('active'); }
+
+let peer = null;
+let conn = null;
+let myRole = null;
+let remoteBodies = [];
+
+function copyRoomId(id) {
+  const btn = document.getElementById('copyBtn');
+  const showCopied = () => {
+    if (!btn) return;
+    btn.innerText = '✅ Copied!';
+    btn.style.background = '#059669';
+    btn.style.borderColor = '#047857';
+    setTimeout(() => {
+      btn.innerText = '📋 Copy ID';
+      btn.style.background = '#3f3f46';
+      btn.style.borderColor = '#52525b';
+    }, 2000);
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(id).then(showCopied).catch(() => fallbackCopy(id, showCopied));
+  } else {
+    fallbackCopy(id, showCopied);
+  }
+}
+
+function fallbackCopy(text, onSuccess) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  try {
+    document.execCommand('copy');
+    onSuccess();
+  } catch (err) {
+    alert('Copy failed. Please select and copy: ' + text);
+  }
+  document.body.removeChild(textarea);
+}
+
+let selectedRoomMode = null;
+let currentRoomId = '';
+const MODE_NAMES = { 'coop': '2 Players: Team Up', 'pvp-drops': '2 Players: Versus', 'pvp-score': '2 Players: Topple' };
+
+function resetConnectionState() {
+  try { if (physicsWorker) physicsWorker.terminate(); } catch (e) {}
+  try { if (conn) conn.close(); } catch (e) {}
+  try { if (peer) peer.destroy(); } catch (e) {}
+  physicsWorker = null; conn = null; peer = null; myRole = null;
+  isSoloTestMode = false;
+  p2IntroShown = false;
+  const dbgBtn = document.getElementById('debugToggleBtn');
+  const dbgPanel = document.getElementById('debugPanel');
+  if (dbgBtn) dbgBtn.classList.remove('debug-available', 'panel-open');
+  if (dbgPanel) dbgPanel.classList.remove('active');
+}
+
+function renderConnectPanel(mode, code) {
+  const panel = document.getElementById('connectPanel');
+  if (mode === null) {
+    panel.className = 'connect-panel';
+    panel.innerHTML = `<div class="connect-placeholder">For 2 players, P1 must<br>choose a mode first.</div>`;
+    return;
+  }
+  panel.className = 'connect-panel has-content';
+  panel.innerHTML = `
+    <div style="font-size:0.72rem; color:#a8a29e;">Making Room</div>
+    <div style="color:#e2e8f0; font-weight:700; font-size:0.85rem;">${MODE_NAMES[mode]}</div>
+    <div style="font-size:0.72rem; color:#a8a29e; margin-top:4px;">Room ID</div>
+    <div class="code-text" id="connectCodeText">${code || 'Connecting...'}</div>
+    <button id="copyBtn" class="btn-copy" data-action="copyCurrentRoomId">📋 Copy ID</button>
+    <div class="waiting-text">Waiting for friend...</div>
+    <button class="btn-cancel" data-action="cancelRoomCreation">Cancel</button>
+  `;
+}
+
+// 房間代號改為單一數字 0~9（僅供親友間口頭/文字傳達使用），內部仍加上前綴避免與陌生人在
+// PeerJS 公共伺服器上的房間 ID 撞號；使用者只需要知道並輸入這個數字。
+const ROOM_ID_PREFIX = 'tetrimess-room-';
+function createRoom(mode) {
+  debugLog('createRoom(' + mode + '): start');
+  selectedRoomMode = mode || 'pvp-drops';
+  const roomDigit = String(Math.floor(Math.random() * 10)); // 單一數字 0~9
+  currentRoomId = roomDigit;
+  myRole = 'P1';
+  try {
+    peer = new Peer(ROOM_ID_PREFIX + roomDigit);
+    debugLog('createRoom(): Peer object constructed');
+  } catch (e) {
+    debugLog('createRoom(): Peer construction FAILED: ' + e.message, true);
+    const codeEl = document.getElementById('connectCodeText');
+    if (codeEl) codeEl.innerText = 'Failed';
+    return;
+  }
+  try {
+    createPhysicsWorker();
+  } catch (e) {
+    debugLog('createRoom(): physics worker failed: ' + e.message, true);
+  }
+
+  peer.on('open', () => {
+    debugLog('createRoom(): peer open, room id = ' + roomDigit);
+    currentRoomId = roomDigit;
+    const codeEl = document.getElementById('connectCodeText');
+    if (codeEl) codeEl.innerText = roomDigit;
+  });
+
+  peer.on('connection', (c) => {
+    debugLog('createRoom(): P2 connected!');
+    conn = c;
+    setupConnection();
+    try { if (physicsWorker) physicsWorker.postMessage({ type: 'INIT', mode: selectedRoomMode }); } catch (e) { debugLog('INIT postMessage failed: ' + e.message, true); }
+    revealGameplayWithIntro(selectedRoomMode);
+  });
+
+  peer.on('error', (err) => {
+    debugLog('createRoom(): peer error: ' + (err && err.message ? err.message : err), true);
+    const codeEl = document.getElementById('connectCodeText');
+    if (codeEl) codeEl.innerText = 'Failed';
+  });
+}
+
+function startSoloChallenge() {
+  debugLog('startSoloChallenge(): clicked');
+  document.activeElement.blur();
+  resetConnectionState();
+  myRole = 'P1';
+  document.getElementById('p1Title').innerText = 'Player 1 (You)';
+  document.getElementById('p2Title').innerText = 'Player 2';
+  try {
+    createPhysicsWorker();
+    physicsWorker.postMessage({ type: 'INIT', mode: 'solo' });
+    debugLog('startSoloChallenge(): worker INIT message sent');
+  } catch (e) {
+    debugLog('startSoloChallenge(): worker failed: ' + e.message, true);
+  }
+  debugLog('startSoloChallenge(): calling revealGameplayWithIntro...');
+  revealGameplayWithIntro('solo');
+  debugLog('startSoloChallenge(): done');
+}
+
+function selectRoomMode(mode, btnEl) {
+  debugLog('selectRoomMode(' + mode + '): clicked');
+  document.activeElement.blur();
+  if (selectedRoomMode === mode) { debugLog('selectRoomMode(): same mode already selected, ignored'); return; }
+
+  resetConnectionState(); 
+
+  [...document.getElementById('modeSubstack').children].forEach(el => el.classList.toggle('selected', el === btnEl));
+  renderConnectPanel(mode, null);
+  createRoom(mode);
+}
+
+function copyCurrentRoomId() { copyRoomId(currentRoomId); }
+
+function cancelRoomCreation() {
+  resetConnectionState();
+  selectedRoomMode = null;
+  [...document.getElementById('modeSubstack').children].forEach(el => el.classList.remove('selected'));
+  renderConnectPanel(null);
+}
+
+let isSoloTestMode = false;
+let p2IntroShown = false;
+
+// ============ 開局前 10 秒過場說明畫面（四個模式都有）============
+// 以下數值是用獨立的「過場示意圖設計工作區」調校定案後套用回來的
+const MODE_INTRO_CONTENT = {
+  'solo': {
+    tagline: 'Reach the Line', kind: 'stack',
+    boxW: 160, boxH: 140, lineY: 40,
+    blockW: 42, blockH: 19, blockGap: 2, numBlocks: 4, stackBottom: 26,
+    colors: ['#9fb4c4', '#c99b95', '#d9c48f', '#9db299'],
+    baseCols: 4, baseRows: 2, baseCellSize: 22, baseCellGap: 2, baseColor: '#526478', baseLift: 0
+  },
+  'coop': {
+    tagline: 'Reach the Line', kind: 'stack',
+    boxW: 160, boxH: 140, lineY: 40,
+    blockW: 42, blockH: 19, blockGap: 2, numBlocks: 4, stackBottom: 26,
+    colors: ['#9fb4c4', '#c99b95', '#d9c48f', '#9db299'],
+    baseCols: 4, baseRows: 2, baseCellSize: 22, baseCellGap: 2, baseColor: '#526478', baseLift: 0
+  },
+  'pvp-drops': {
+    tagline: 'Do Not Drop', kind: 'toppling',
+    boxW: 190, boxH: 140,
+    blockW: 42, blockH: 19,
+    colors: ['#9fb4c4', '#c99b95', '#d9c48f', '#9db299'],
+    baseCols: 4, baseRows: 2, baseCellSize: 22, baseCellGap: 2, baseColor: '#526478', baseLift: 0,
+    b1X: 58, b1Y: 70, b1Rot: 40,
+    b2X: 78, b2Y: 50, b2Rot: 40,
+    b3X: 98, b3Y: 30, b3Rot: 40,
+    b4X: 118, b4Y: 10, b4Rot: 40,
+    mark: { shape: 'text', emoji: '✕', x: 180, y: 30, size: 2, color: '#ef4444' }
+  },
+  'pvp-score': {
+    tagline: 'Topple to Score', kind: 'toppling',
+    boxW: 190, boxH: 140,
+    blockW: 42, blockH: 19,
+    colors: ['#9fb4c4', '#c99b95', '#d9c48f', '#9db299'],
+    baseCols: 4, baseRows: 2, baseCellSize: 22, baseCellGap: 2, baseColor: '#526478', baseLift: 0,
+    b1X: 58, b1Y: 70, b1Rot: 40,
+    b2X: 78, b2Y: 50, b2Rot: 40,
+    b3X: 98, b3Y: 30, b3Rot: 40,
+    b4X: 118, b4Y: 10, b4Rot: 40,
+    mark: { shape: 'ring', x: 180, y: 30, size: 2, color: '#22c55e' }
+  },
+};
+
+function isRealMultiplayerSession() { return !!(conn && myRole && !isSoloTestMode); }
+
+// 凹字型基座：底部一整排、上面只留最左最右兩格墊高，中間空著給堆疊方塊
+function renderBaseGrid(cfg) {
+  const baseW = cfg.baseCols * cfg.baseCellSize + (cfg.baseCols - 1) * cfg.baseCellGap;
+  const baseH = cfg.baseRows * cfg.baseCellSize + (cfg.baseRows - 1) * cfg.baseCellGap;
+  const baseX = (cfg.boxW - baseW) / 2;
+  let cells = '';
+  for (let r = 0; r < cfg.baseRows; r++) {
+    for (let c = 0; c < cfg.baseCols; c++) {
+      const isBottomRow = r === cfg.baseRows - 1;
+      const isEdgeCol = c === 0 || c === cfg.baseCols - 1;
+      if (!isBottomRow && !isEdgeCol) continue;
+      const x = baseX + c * (cfg.baseCellSize + cfg.baseCellGap);
+      const y = (cfg.boxH - baseH - cfg.baseLift) + r * (cfg.baseCellSize + cfg.baseCellGap);
+      cells += `<div style="position:absolute; left:${x}px; top:${y}px; width:${cfg.baseCellSize}px; height:${cfg.baseCellSize}px; background:${cfg.baseColor}; border-radius:3px;"></div>`;
+    }
+  }
+  return cells;
+}
+
+function renderIntroIllustration(cfg) {
+  const box = document.getElementById('gameIntroIllustration');
+  if (!box || !cfg) return;
+  box.style.width = cfg.boxW + 'px';
+  box.style.height = cfg.boxH + 'px';
+
+  if (cfg.kind === 'stack') {
+    const baseCells = renderBaseGrid(cfg);
+    const blocks = [];
+    for (let i = 0; i < cfg.numBlocks; i++) {
+      blocks.push(`<div class="intro-block" style="width:${cfg.blockW}px; height:${cfg.blockH}px; background:${cfg.colors[i % cfg.colors.length]}"></div>`);
+    }
+    box.innerHTML = `
+      <div class="intro-line" style="top:${cfg.lineY}px;"></div>
+      ${baseCells}
+      <div class="intro-stack" style="bottom:${cfg.stackBottom}px; left:50%; transform:translateX(-50%); gap:${cfg.blockGap}px;">
+        ${blocks.join('')}
+      </div>`;
+  } else if (cfg.kind === 'toppling') {
+    const baseCells = renderBaseGrid(cfg);
+    const blocks = [1, 2, 3, 4].map(i => `
+      <div class="intro-block" style="position:absolute; left:${cfg['b' + i + 'X']}px; top:${cfg['b' + i + 'Y']}px; width:${cfg.blockW}px; height:${cfg.blockH}px; background:${cfg.colors[i - 1]}; transform:rotate(${cfg['b' + i + 'Rot']}deg); transform-origin:center;"></div>
+    `).join('');
+    const m = cfg.mark;
+    let mark;
+    if (m.shape === 'ring') {
+      const sizePx = m.size * 16;
+      mark = `<div style="position:absolute; left:${m.x}px; top:${m.y}px; width:${sizePx}px; height:${sizePx}px; border-radius:50%; border:${Math.max(2, sizePx * 0.16)}px solid ${m.color};"></div>`;
+    } else {
+      mark = `<div class="intro-x" style="left:${m.x}px; top:${m.y}px; font-size:${m.size}rem;${m.color ? ' color:' + m.color + ';' : ''}">${m.emoji}</div>`;
+    }
+    box.innerHTML = `${baseCells}${blocks}${mark}`;
+  }
+}
+
+let introCountdownTimer = null;
+let introSkipLocal = false;
+let introSkipRemote = false;
+let introDismissed = false;
+
+function revealGameplayWithIntro(mode) {
+  debugLog('revealGameplayWithIntro(' + mode + '): hiding lobby...');
+  document.getElementById('lobbyOverlay').classList.remove('active');
+  // 每次重新開一局過場，都先把 P1/P2 資訊列跟操作按鈕鎖黑，等過場結束再解開
+  const infoBar = document.getElementById('top-players-container');
+  const controlsRow = document.getElementById('mobile-controls-row');
+  if (infoBar) infoBar.classList.add('pregame-hidden');
+  if (controlsRow) controlsRow.classList.add('pregame-hidden');
+  showGameIntro(mode);
+  debugLog('revealGameplayWithIntro(' + mode + '): done');
+}
+
+function showGameIntro(mode) {
+  debugLog('showGameIntro(' + mode + '): start');
+  introSkipLocal = false; introSkipRemote = false; introDismissed = false;
+  const content = MODE_INTRO_CONTENT[mode] || MODE_INTRO_CONTENT['solo'];
+  const taglineEl = document.getElementById('gameIntroTagline');
+  if (taglineEl) taglineEl.innerText = content.tagline;
+  renderIntroIllustration(content);
+  const skipBtn = document.getElementById('introSkipBtn');
+  if (skipBtn) { skipBtn.innerText = 'Skip ⏭'; skipBtn.classList.remove('done'); }
+
+  let secondsLeft = 10;
+  const countdownEl = document.getElementById('introCountdownVal');
+  if (countdownEl) countdownEl.innerText = secondsLeft;
+  clearInterval(introCountdownTimer);
+  introCountdownTimer = setInterval(() => {
+    secondsLeft--;
+    if (countdownEl) countdownEl.innerText = Math.max(0, secondsLeft);
+    if (secondsLeft <= 0) dismissGameIntro();
+  }, 1000);
+
+  const overlay = document.getElementById('gameIntroOverlay');
+  if (!overlay) { debugLog('showGameIntro(): #gameIntroOverlay NOT FOUND IN DOM!', true); return; }
+  overlay.classList.add('active');
+  debugLog('showGameIntro(): overlay .active class added, classList=' + overlay.className);
+}
+
+function dismissGameIntro() {
+  if (introDismissed) return;
+  introDismissed = true;
+  clearInterval(introCountdownTimer);
+  const overlay = document.getElementById('gameIntroOverlay');
+  if (overlay) overlay.classList.remove('active');
+  // 過場結束、正式進入遊戲的這一刻，才讓 P1/P2 資訊列跟操作按鈕真正顯現
+  const infoBar = document.getElementById('top-players-container');
+  const controlsRow = document.getElementById('mobile-controls-row');
+  if (infoBar) infoBar.classList.remove('pregame-hidden');
+  if (controlsRow) controlsRow.classList.remove('pregame-hidden');
+}
+
+function tapIntroSkip() {
+  introSkipLocal = true;
+  if (!isRealMultiplayerSession()) { dismissGameIntro(); return; }
+  try { if (conn && conn.open) conn.send({ type: 'SKIP_INTRO' }); } catch (e) {}
+  if (introSkipRemote) { dismissGameIntro(); return; }
+  const skipBtn = document.getElementById('introSkipBtn');
+  if (skipBtn) { skipBtn.innerText = 'Waiting…'; skipBtn.classList.add('done'); }
+}
+function receiveRemoteSkip() {
+  introSkipRemote = true;
+  if (introSkipLocal) dismissGameIntro();
+}
+
+function enterSoloTestMode() {
+  resetConnectionState();
+  isSoloTestMode = true;
+  myRole = 'P1';
+  document.getElementById('p1Title').innerText = 'Player 1 (Test)';
+  document.getElementById('p2Title').innerText = 'Player 2 (Test)';
+  try {
+    createPhysicsWorker();
+    physicsWorker.postMessage({ type: 'INIT' });
+  } catch (e) {
+    console.error('Failed to start physics worker:', e);
+  }
+  revealGameplayWithIntro('solo');
+}
+
+// 99：單人玩雙邊，測試三種雙人模式的完整規則（回合、倒數、勝負判定都跟真連線一樣，
+// 只是兩邊都自己操作）。畫面顯示正常的 Player 1 / Player 2，不加 (Test) 字樣。
+function showBothSidesModePicker() {
+  debugLog('showBothSidesModePicker(): rendering 3-mode picker into #connectPanel');
+  const panel = document.getElementById('connectPanel');
+  if (!panel) { debugLog('showBothSidesModePicker(): #connectPanel NOT FOUND!', true); return; }
+  panel.className = 'connect-panel has-content';
+  panel.innerHTML = `
+    <div style="font-size:0.72rem; color:#a8a29e;">Solo (Both Sides) — pick a mode to test</div>
+    <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
+      <button class="btn-restart" style="background:#4f46e5;" data-action="enterSoloBothSidesMode:coop">Team Up</button>
+      <button class="btn-restart" style="background:#4f46e5;" data-action="enterSoloBothSidesMode:pvp-drops">Versus</button>
+      <button class="btn-restart" style="background:#4f46e5;" data-action="enterSoloBothSidesMode:pvp-score">Topple</button>
+    </div>
+    <button class="btn-cancel" style="margin-top:8px;" data-action="renderConnectPanelNull">Cancel</button>
+  `;
+  debugLog('showBothSidesModePicker(): picker rendered, panel className=' + panel.className);
+}
+function enterSoloBothSidesMode(mode) {
+  debugLog('enterSoloBothSidesMode(' + mode + '): clicked');
+  resetConnectionState();
+  isSoloTestMode = true; // 沿用「輪到誰、輸入就直接控制誰」的既有機制
+  myRole = 'P1';
+  document.getElementById('p1Title').innerText = 'Player 1';
+  document.getElementById('p2Title').innerText = 'Player 2';
+  try {
+    createPhysicsWorker();
+    physicsWorker.postMessage({ type: 'INIT', mode });
+  } catch (e) {
+    debugLog('enterSoloBothSidesMode(): worker failed: ' + e.message, true);
+  }
+  revealGameplayWithIntro(mode);
+}
+
+// 98：多數值測試模式。用 1 人模式開局，並顯示左上角的 🧪 按鈕，可隨時開關全螢幕調參面板。
+function enterDebugTuningMode() {
+  debugLog('enterDebugTuningMode(): clicked');
+  startSoloChallenge();
+  const btn = document.getElementById('debugToggleBtn');
+  if (btn) btn.classList.add('debug-available');
+  buildDebugPanel();
+}
+
+function joinRoom() {
+  debugLog('joinRoom(): clicked, input value = "' + document.getElementById('roomInput').value + '"');
+  document.activeElement.blur();
+  const targetId = document.getElementById('roomInput').value.trim();
+  if (targetId === '12345') { enterSoloTestMode(); return; }
+  if (targetId === '99') { showBothSidesModePicker(); return; }
+  if (targetId === '98') { enterDebugTuningMode(); return; }
+  if (!targetId) return alert('Please enter a 1-digit Room ID (0-9).');
+  if (!/^[0-9]$/.test(targetId)) return alert('Room ID must be a single digit (0-9). (98/99 are local test modes.)');
+
+  resetConnectionState(); 
+  myRole = 'P2';
+  document.getElementById('lobbyStatus').innerText = 'Connecting...';
+  try {
+    peer = new Peer();
+    debugLog('joinRoom(): Peer constructed');
+  } catch (e) {
+    debugLog('joinRoom(): Peer construction FAILED: ' + e.message, true);
+    alert('Connection failed to initialize. Your browser/network may be blocking it.');
+    document.getElementById('lobbyStatus').innerText = 'Failed to connect. Try again.';
+    return;
+  }
+
+  peer.on('open', () => {
+    debugLog('joinRoom(): peer open, connecting to room ' + targetId);
+    conn = peer.connect(ROOM_ID_PREFIX + targetId, { reliable: true });
+    setupConnection();
+  });
+
+  peer.on('error', (err) => {
+    debugLog('joinRoom(): peer error: ' + (err && err.message ? err.message : err), true);
+    alert('Connection failed. Check Room ID.');
+    document.getElementById('lobbyStatus').innerText = 'Failed to connect. Try again.';
+  });
+}
+
+function setupConnection() {
+  conn.on('open', () => {
+    if (document.activeElement) document.activeElement.blur();
+    document.getElementById('p1Title').innerText = myRole === 'P1' ? 'Player 1 (You)' : 'Player 1';
+    document.getElementById('p2Title').innerText = myRole === 'P2' ? 'Player 2 (You)' : 'Player 2';
+    if (myRole === 'P2') document.getElementById('btnRestart').style.display = 'none';
+  });
+
+  conn.on('error', (err) => {
+    console.error('Connection error:', err);
+  });
+
+  conn.on('close', () => {
+    console.warn('Connection closed');
+  });
+
+  conn.on('data', (data) => {
+    try {
+      if (data.type === 'SKIP_INTRO') { receiveRemoteSkip(); return; }
+      if (myRole === 'P1') {
+        if (data.type === 'KEY_INPUT' && currentPlayer === 2 && physicsWorker) {
+          physicsWorker.postMessage({ type: 'KEY', key: data.key });
+        }
+      } else if (myRole === 'P2') {
+        if (data.type === 'SYNC') applySyncedState(data.state);
+      }
+    } catch (err) {
+      console.error('Error parsing data:', err);
+    }
+  });
+}
+
+const roundNum = (num) => Math.round(num * 1000) / 1000;
+
+function broadcastState() {
+  if (myRole !== 'P1' || !conn || !conn.open) return; 
+  const snapshot = {
+    gameState, currentPlayer, playerDrops, sharedHand,
+    posX: roundNum(posX), posY: roundNum(posY), activeMatrix, activeShape, countdownValue,
+    selectedCardIndex, lastDropWarningMsg, hasTouched, touchTime, modalTitle, modalDesc,
+    gameMode, sharedDropCount, playerScores, turnStartTime, playerTimeoutStrikes,
+    bodies: localBodies 
+  };
+  try { conn.send({ type: 'SYNC', state: snapshot }); } catch (e) { console.error('Broadcast failed:', e); }
+}
+
+let prevSnapshot = null;
+let currSnapshot = null;
+const INTERP_DELAY_MS = 90;
+
+const lerp = (a, b, t) => a + (b - a) * t;
+function lerpAngle(a, b, t) {
+  let diff = b - a;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  return a + diff * t;
+}
+
+function getInterpolatedBodies() {
+  if (!currSnapshot) return [];
+  if (!prevSnapshot) return currSnapshot.bodies;
+
+  const renderTime = performance.now() - INTERP_DELAY_MS;
+  if (renderTime <= prevSnapshot.time) return prevSnapshot.bodies;
+  if (renderTime >= currSnapshot.time) return currSnapshot.bodies;
+
+  const span = currSnapshot.time - prevSnapshot.time;
+  const t = span > 0 ? (renderTime - prevSnapshot.time) / span : 1;
+  const prevMap = new Map(prevSnapshot.bodies.map(b => [b.id, b]));
+
+  return currSnapshot.bodies.map(currBody => {
+    const prevBody = prevMap.get(currBody.id);
+    if (!prevBody) return currBody;
+    return {
+      ...currBody,
+      x: lerp(prevBody.x, currBody.x, t),
+      y: lerp(prevBody.y, currBody.y, t),
+      angle: lerpAngle(prevBody.angle, currBody.angle, t),
+      parts: currBody.parts.map((currPart, idx) => {
+        const prevPart = prevBody.parts[idx];
+        if (!prevPart) return currPart;
+        return { ...currPart, x: lerp(prevPart.x, currPart.x, t), y: lerp(prevPart.y, currPart.y, t) };
+      })
+    };
+  });
+}
+
+function applySyncedState(state) {
+  gameState = state.gameState; currentPlayer = state.currentPlayer;
+  playerDrops = state.playerDrops; sharedHand = state.sharedHand;
+  posX = state.posX; posY = state.posY; activeMatrix = state.activeMatrix;
+  activeShape = state.activeShape; countdownValue = state.countdownValue;
+  selectedCardIndex = state.selectedCardIndex; lastDropWarningMsg = state.lastDropWarningMsg;
+  hasTouched = state.hasTouched; touchTime = state.touchTime;
+  gameMode = state.gameMode; sharedDropCount = state.sharedDropCount; playerScores = state.playerScores; turnStartTime = state.turnStartTime;
+  playerTimeoutStrikes = state.playerTimeoutStrikes || { 1: 0, 2: 0 };
+  remoteBodies = state.bodies;
+  prevSnapshot = currSnapshot;
+  if (myRole === 'P2' && !p2IntroShown) { p2IntroShown = true; revealGameplayWithIntro(gameMode); }
+  currSnapshot = { time: performance.now(), bodies: state.bodies };
+  updateUI(); renderHandCards();
+  if (gameState === 'GAME_OVER') showModal(state.modalTitle, state.modalDesc);
+  else hideModal();
+  drawFrame();
+}
+
+const TILE_SIZE = 24; const CANVAS_WIDTH = 336; const CANVAS_HEIGHT = 600;
+const BASE_LEFT_X = CANVAS_WIDTH / 2 - (10 * TILE_SIZE) / 2;
+const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
+
+let gameState = 'SELECT_CARD', currentPlayer = 1, playerDrops = { 1: 0, 2: 0 }, lastDropWarningMsg = '';
+let sharedHand = [], selectedCardIndex = 0, activeShape = null, activeMatrix = null;
+let posX = CANVAS_WIDTH / 2, posY = 200, countdownValue = 3;
+let hasTouched = false, touchTime = 0;
+let modalTitle = '', modalDesc = ''; 
+let gameMode = 'pvp-drops', sharedDropCount = 0, playerScores = { 1: 0, 2: 0 }, turnStartTime = 0;
+let playerTimeoutStrikes = { 1: 0, 2: 0 };
+const TURN_TIME_LIMIT_MS = 60000; // 跟 worker 裡的值保持一致，只有 Score 模式會用到（見 updateUI 的倒數顯示）
+let localBodies = []; 
+
+function snapToGrid(px, cols) { const hw = (cols * TILE_SIZE) / 2; const le = px - hw; const sle = BASE_LEFT_X + Math.round((le - BASE_LEFT_X) / TILE_SIZE) * TILE_SIZE; return sle + hw; }
+function rotateMatrixClockwise(matrix) {
+  const rows = matrix.length; const cols = matrix[0].length;
+  const result = Array.from({ length: cols }, () => Array(rows).fill(0));
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) result[c][rows - 1 - r] = matrix[r][c];
+  return result;
+}
+
+function updateUI() {
+  document.getElementById('p1Card').className = `player-card ${currentPlayer === 1 ? 'active-p1' : ''}`;
+  const p1Badge = document.getElementById('p1ScoreBadge');
+  const p2Card = document.getElementById('p2Card');
+  const p2Badge = document.getElementById('p2ScoreBadge');
+
+  if (gameMode === 'solo') {
+    p1Badge.innerText = `${playerDrops[1]} / 11`;
+    p1Badge.className = `drop-badge ${playerDrops[1] > 0 ? 'warn' : ''}`;
+    p2Card.className = 'player-card player-card-disabled';
+    p2Badge.innerText = '-';
+    p2Badge.className = 'drop-badge';
+  } else if (gameMode === 'coop') {
+    p1Badge.innerText = `${sharedDropCount} / 11`;
+    p1Badge.className = `drop-badge ${sharedDropCount > 0 ? 'warn' : ''}`;
+    p2Card.className = `player-card ${currentPlayer === 2 ? 'active-p2' : ''}`;
+    p2Badge.innerText = `${sharedDropCount} / 11`;
+    p2Badge.className = `drop-badge ${sharedDropCount > 0 ? 'warn' : ''}`;
+  } else if (gameMode === 'pvp-score') {
+    p1Badge.innerText = `${playerScores[1]} / ${'35'}`;
+    p1Badge.className = 'drop-badge';
+    p2Card.className = `player-card ${currentPlayer === 2 ? 'active-p2' : ''}`;
+    p2Badge.innerText = `${playerScores[2]} / 35`;
+    p2Badge.className = 'drop-badge';
+  } else {
+    p1Badge.innerText = `${playerDrops[1]} / 11`;
+    p1Badge.className = `drop-badge ${playerDrops[1] > 0 ? 'warn' : ''}`;
+    p2Card.className = `player-card ${currentPlayer === 2 ? 'active-p2' : ''}`;
+    p2Badge.innerText = `${playerDrops[2]} / 11`;
+    p2Badge.className = `drop-badge ${playerDrops[2] > 0 ? 'warn' : ''}`;
+  }
+
+  const SETTLE_WINDOW_MS = gameMode === 'pvp-score' ? 10000 : 4000; // 跟 worker 保持一致
+
+  const statusCard = document.getElementById('statusCard');
+  if (lastDropWarningMsg) statusCard.innerHTML = `<span class="warning-msg">${lastDropWarningMsg}</span>`;
+  else if (gameState === 'SELECT_CARD') statusCard.innerHTML = `P${currentPlayer}'s Turn: Choose a block (<span class="key">E</span>)`;
+  else if (gameState === 'POSITIONING') statusCard.innerHTML = `P${currentPlayer} is placing...`;
+  else if (gameState === 'DROP_WAIT') {
+    if (!hasTouched) statusCard.innerHTML = `Falling...`;
+    else {
+      const elapsed = Date.now() - touchTime;
+      if (elapsed < 1000) statusCard.innerHTML = `Touched! Checking...`;
+      else statusCard.innerHTML = `⚠️ Still moving! <b>Safe in ${Math.max(1, Math.ceil((SETTLE_WINDOW_MS - elapsed) / 1000))} s</b>...`;
+    }
+  }
+
+  if (gameState === 'DROP_WAIT' && hasTouched) {
+    const elapsed = Date.now() - touchTime;
+    if (elapsed >= 1000) showTopRightTimer(Math.max(1, Math.ceil((SETTLE_WINDOW_MS - elapsed) / 1000)), 'Safe In');
+    else hideTopRightTimer();
+  } else if (gameMode === 'pvp-score' && (gameState === 'SELECT_CARD' || gameState === 'POSITIONING') && turnStartTime) {
+    // Score 模式的放置倒數，跟「Safe In」共用同一個右上角位置與樣式
+    const remainingSec = Math.max(0, Math.ceil((TURN_TIME_LIMIT_MS - (Date.now() - turnStartTime)) / 1000));
+    const strikes = (playerTimeoutStrikes && playerTimeoutStrikes[currentPlayer]) || 0;
+    showTopRightTimer(remainingSec, 'P' + currentPlayer + ' Place', strikes === 2 ? 'Last Chance!' : '');
+  } else {
+    hideTopRightTimer();
+  }
+}
+
+function renderHandCards() {
+  const handContainer = document.querySelector('.hand-container-vertical');
+  if (handContainer) handContainer.classList.toggle('hand-hidden', gameState !== 'SELECT_CARD');
+  for (let i = 0; i < 5; i++) {
+    const cardEl = document.getElementById(`card${i}`); const cctx = cardEl.querySelector('canvas').getContext('2d');
+    cardEl.className = `card ${(gameState === 'SELECT_CARD' && i === selectedCardIndex && i < 3) ? `selected-p${currentPlayer}` : ''}`;
+    cctx.filter = 'none'; cctx.fillStyle = "#18181c"; cctx.fillRect(0, 0, 60, 60);
+    if (sharedHand[i]) {
+      const isQueued = (i === 3 || i === 4); cctx.filter = isQueued ? 'grayscale(80%)' : 'none';
+      drawMatrixToCanvas(cctx, sharedHand[i].matrix, sharedHand[i].color, 30, 30, 11, isQueued ? 0.2 : 1.0, true); cctx.filter = 'none';
+    }
+  }
+}
+
+function drawTileRun(ctx, cx, cy, angle, count, tileSize, vertical) {
+  const cos = Math.cos(angle); const sin = Math.sin(angle); const half = tileSize / 2;
+  for (let i = 0; i < count; i++) {
+    const offset = (i - (count - 1) / 2) * tileSize; const localX = vertical ? 0 : offset; const localY = vertical ? offset : 0;
+    const corners = [{ x: -half, y: -half }, { x: half, y: -half }, { x: half, y: half }, { x: -half, y: half }];
+    ctx.beginPath();
+    corners.forEach((corner, idx) => {
+      const wx = cx + (localX + corner.x) * cos - (localY + corner.y) * sin; const wy = cy + (localX + corner.x) * sin + (localY + corner.y) * cos;
+      if (idx === 0) ctx.moveTo(wx, wy); else ctx.lineTo(wx, wy);
+    });
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+}
+
+function drawMatrixToCanvas(targetCtx, matrix, color, centerX, centerY, tileSize, alpha = 1.0, isCard = false) {
+  const rows = matrix.length; const cols = matrix[0].length; const startX = centerX - (cols * tileSize) / 2; const startY = centerY - (rows * tileSize) / 2;
+  targetCtx.save(); targetCtx.globalAlpha = alpha; targetCtx.fillStyle = color; targetCtx.strokeStyle = isCard ? '#27272a' : '#18181c'; targetCtx.lineWidth = 1;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (matrix[r][c] === 1) { targetCtx.fillRect(startX + c * tileSize, startY + r * tileSize, tileSize - 1, tileSize - 1); targetCtx.strokeRect(startX + c * tileSize, startY + r * tileSize, tileSize - 1, tileSize - 1); }
+  targetCtx.restore();
+}
+
+function showTopRightTimer(val, label, suffix) { const el = document.getElementById('topRightTimer'); el.classList.add('active'); el.innerHTML = `<span>${label || 'Safe In'}:</span> <span id="timerVal">${val}</span>s${suffix ? ' <span class="timer-suffix">' + suffix + '</span>' : ''}`; }
+function hideTopRightTimer() { document.getElementById('topRightTimer').classList.remove('active'); }
+
+function handleLocalPredictionInput(key) {
+  if (gameState === 'SELECT_CARD') {
+    if (key === 'ARROWUP' || key === 'ARROWLEFT' || key === 'A') selectedCardIndex = (selectedCardIndex + 2) % 3;
+    else if (key === 'ARROWDOWN' || key === 'ARROWRIGHT' || key === 'D') selectedCardIndex = (selectedCardIndex + 1) % 3;
+    renderHandCards();
+  } else if (gameState === 'POSITIONING') {
+    const shrink = (gameMode === 'pvp-score') ? MOVE_RANGE_SHRINK : 0;
+    const cols = activeMatrix[0].length;
+    const leftBound = snapToGrid((cols * TILE_SIZE) / 2 + 6 + shrink, cols);
+    const rightBound = snapToGrid(CANVAS_WIDTH - (cols * TILE_SIZE) / 2 - 6 - shrink, cols);
+    if (key === 'ARROWLEFT' || key === 'A') posX = Math.max(leftBound, snapToGrid(posX - TILE_SIZE, cols));
+    else if (key === 'ARROWRIGHT' || key === 'D') posX = Math.min(rightBound, snapToGrid(posX + TILE_SIZE, cols));
+    else if (key === 'R') {
+      activeMatrix = rotateMatrixClockwise(activeMatrix);
+      const newCols = activeMatrix[0].length;
+      const newLeftBound = snapToGrid((newCols * TILE_SIZE) / 2 + 6 + shrink, newCols);
+      const newRightBound = snapToGrid(CANVAS_WIDTH - (newCols * TILE_SIZE) / 2 - 6 - shrink, newCols);
+      posX = Math.min(newRightBound, Math.max(newLeftBound, snapToGrid(posX, newCols)));
+    }
+  }
+  drawFrame();
+}
+
+function triggerGameInput(keyStr) {
+  if (isSoloTestMode) {
+    if (physicsWorker) physicsWorker.postMessage({ type: 'KEY', key: keyStr });
+    return;
+  }
+
+  if (myRole === 'P2') {
+    if (currentPlayer === 2 && conn) {
+      try { conn.send({ type: 'KEY_INPUT', key: keyStr }); } catch (err) { console.error('Key send failed:', err); }
+      if (keyStr !== 'E' && keyStr !== 'ENTER') {
+        handleLocalPredictionInput(keyStr);
+      }
+    }
+    return;
+  }
+
+  if (myRole === 'P1' && currentPlayer === 1 && physicsWorker) {
+    physicsWorker.postMessage({ type: 'KEY', key: keyStr });
+  }
+}
+
+window.addEventListener('keydown', (e) => {
+  const keyStr = e.key.toUpperCase();
+  const gameKeys = ['ARROWUP', 'ARROWDOWN', 'ARROWLEFT', 'ARROWRIGHT', ' ', 'ENTER', 'W', 'A', 'S', 'D', 'E', 'R'];
+
+  if (gameKeys.includes(keyStr) && e.target.tagName !== 'INPUT') {
+    e.preventDefault();
+    triggerGameInput(keyStr);
+  }
+});
+
+function bindVirtualButton(id, keyStr) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  // 觸控用 touchstart + passive:false：這是業界驗證最久、專門用來擋掉 iOS Safari
+  // 連續快速點擊被誤判成雙擊縮放的做法，比 pointerdown 更可靠。
+  btn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    triggerGameInput(keyStr);
+  }, { passive: false });
+  // pointerdown 只服務滑鼠／觸控筆；觸控輸入一律交給上面的 touchstart 處理，
+  // 避免同一次點擊被兩個事件各觸發一次、導致方塊多動一格。
+  btn.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') return;
+    e.preventDefault();
+    triggerGameInput(keyStr);
+  });
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+// 綁定左側 4 顆按鈕（左、右、旋轉、確認）與右側 2 顆按鈕（旋轉、確認）
+bindVirtualButton('mc-left', 'ARROWLEFT');
+bindVirtualButton('mc-right', 'ARROWRIGHT');
+bindVirtualButton('mc-rotate-top', 'R');
+bindVirtualButton('mc-drop-left', 'E'); // 左側下方確認鍵
+bindVirtualButton('mc-rotate', 'R');
+bindVirtualButton('mc-drop', 'E');
+
+function toggleFullScreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(err => {
+      console.warn(`Fullscreen error: ${err.message}`);
+    });
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen();
+  }
+}
+
+// ============ 手機版面：現在只有直式，橫式已完全移除 ============
+function isMobileLayoutActive() { return window.innerWidth <= 900 || window.innerHeight <= 700; }
+
+function autoDetectLayout() {
+  document.body.setAttribute('data-layout', 'portrait');
+}
+// 「⤢」鈕現在純粹是 UI 位置輔助工具：短按 = 重設操作按鈕到預設位置；長按拖曳 = 手動調整（見下方）。
+function toggleOrientationLayout() {
+  saveControlsOffset(0);
+  applyControlsOffset(0);
+}
+
+// ============ 操作按鈕上下拖曳調整（長按「直橫式切換」鈕進入拖曳模式）============
+// 短按：切換直式/橫式。長按 350ms 後放開手指前的上下移動：整組按鈕（左4+右4）跟著垂直移動，
+// 放開後記住位置（直式、橫式分開記憶，存在 localStorage，下次打開自動套用）。
+// 只會移動按鈕的 Y 座標，不會推擠、縮放或改變其他任何 UI（遊玩區、手牌、玩家資訊都不受影響）。
+const CONTROLS_OFFSET_PREFIX = 'tetrimess-controls-offset-';
+function controlsOffsetKey() {
+  return CONTROLS_OFFSET_PREFIX + (document.body.getAttribute('data-layout') || 'portrait');
+}
+function loadControlsOffset() {
+  try { const v = localStorage.getItem(controlsOffsetKey()); return v ? parseFloat(v) : 0; } catch (e) { return 0; }
+}
+function saveControlsOffset(px) {
+  try { localStorage.setItem(controlsOffsetKey(), String(px)); } catch (e) {}
+}
+function applyControlsOffset(px) {
+  const left = document.getElementById('mobile-controls-left');
+  const right = document.getElementById('mobile-controls-right');
+  const t = `translateY(${px}px)`;
+  if (left) left.style.transform = t;
+  if (right) right.style.transform = t;
+}
+
+// 計算按鈕最多可以往上/往下移動到哪裡：
+// 上緣不可超出螢幕頂端；下緣不可超過「起始位置」(貼著 P1/P2 資訊上方)。
+// 遊玩區、五選三手牌本身則不設限，允許被按鈕蓋住（手牌 z-index 較高，仍會顯示在按鈕上方）。
+function computeControlsDragBounds(naturalTop, naturalBottom) {
+  const topLimit = 4;
+  const bottomLimit = naturalBottom; // 起始位置已貼著 P1/P2 資訊上方，不可再往下
+  return { topLimit, bottomLimit };
+}
+
+let controlsPressTimer = null;
+let controlsDragActive = false;
+let controlsDragStartY = 0;
+let controlsDragBaseOffset = 0;
+let controlsDragMin = 0;
+let controlsDragMax = 0;
+const CONTROLS_LONG_PRESS_MS = 350;
+
+function onOrientationPointerDown(e) {
+  controlsDragActive = false;
+  controlsDragStartY = e.clientY;
+  controlsDragBaseOffset = loadControlsOffset();
+  clearTimeout(controlsPressTimer);
+  controlsPressTimer = setTimeout(() => {
+    controlsDragActive = true;
+    const left = document.getElementById('mobile-controls-left');
+    let naturalTop = 0, naturalBottom = 0;
+    if (left) {
+      const prevTransform = left.style.transform;
+      left.style.transform = 'translateY(0px)';
+      const rect = left.getBoundingClientRect();
+      naturalTop = rect.top; naturalBottom = rect.bottom;
+      left.style.transform = prevTransform;
+    }
+    const bounds = computeControlsDragBounds(naturalTop, naturalBottom);
+    controlsDragMin = bounds.topLimit - naturalTop;
+    controlsDragMax = bounds.bottomLimit - naturalBottom;
+    if (controlsDragMax < controlsDragMin) controlsDragMax = controlsDragMin;
+    const btn = document.getElementById('mc-orientation');
+    if (btn) btn.classList.add('dragging');
+    if (navigator.vibrate) { try { navigator.vibrate(15); } catch (err) {} }
+  }, CONTROLS_LONG_PRESS_MS);
+  const btn = document.getElementById('mc-orientation');
+  if (btn && btn.setPointerCapture) { try { btn.setPointerCapture(e.pointerId); } catch (err) {} }
+}
+function onOrientationPointerMove(e) {
+  if (!controlsDragActive) return;
+  e.preventDefault();
+  const delta = e.clientY - controlsDragStartY;
+  const next = Math.max(controlsDragMin, Math.min(controlsDragMax, controlsDragBaseOffset + delta));
+  applyControlsOffset(next);
+}
+function onOrientationPointerUp(e) {
+  clearTimeout(controlsPressTimer);
+  const btn = document.getElementById('mc-orientation');
+  if (controlsDragActive) {
+    const delta = e.clientY - controlsDragStartY;
+    const finalOffset = Math.max(controlsDragMin, Math.min(controlsDragMax, controlsDragBaseOffset + delta));
+    applyControlsOffset(finalOffset);
+    saveControlsOffset(finalOffset);
+    if (btn) btn.classList.remove('dragging');
+  } else {
+    toggleOrientationLayout();
+  }
+  controlsDragActive = false;
+}
+(function bindOrientationDrag() {
+  const btn = document.getElementById('mc-orientation');
+  if (!btn) return;
+  btn.addEventListener('pointerdown', onOrientationPointerDown);
+  btn.addEventListener('pointermove', onOrientationPointerMove);
+  btn.addEventListener('pointerup', onOrientationPointerUp);
+  btn.addEventListener('pointercancel', onOrientationPointerUp);
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+})();
+
+// ============ 遊玩區＋選方塊區 上下拖曳調整（僅限手機直式，長按「全螢幕」鈕）============
+// 短按：跟以前一樣，正常切換全螢幕。
+// 長按 350ms 後上下拖動：只有「遊玩區（畫布）」和「五選三選方塊區」兩者一起垂直移動，
+// 操作按鈕區、P1/P2 資訊完全不受影響、不會跟著動。
+// 放開後記住位置（存在 localStorage，下次打開自動套用）。用來補償不同手機「遊玩區沒有真的頂到最上方」的顯示差異。
+// 只在直式模式生效；橫式時此按鈕維持單純的全螢幕開關，不會觸發拖曳。
+const PAGE_OFFSET_KEY = 'tetrimess-page-offset-portrait';
+function loadPageOffset() {
+  try { const v = localStorage.getItem(PAGE_OFFSET_KEY); return v ? parseFloat(v) : 0; } catch (e) { return 0; }
+}
+function savePageOffset(px) {
+  try { localStorage.setItem(PAGE_OFFSET_KEY, String(px)); } catch (e) {}
+}
+function applyPageOffset(px) {
+  const box = document.querySelector('.game-container');
+  const hand = document.querySelector('.hand-container-vertical');
+  const t = px ? `translateY(${px}px)` : '';
+  if (box) box.style.transform = t;
+  if (hand) hand.style.transform = t;
+}
+function refreshPageOffset() {
+  if (document.body.getAttribute('data-layout') === 'portrait') {
+    applyPageOffset(loadPageOffset());
+  } else {
+    applyPageOffset(0); // 橫式不套用這個位移，只有直式支援這個調整
+  }
+}
+
+let pagePressTimer = null;
+let pageDragActive = false;
+let pageDragStartY = 0;
+let pageDragBaseOffset = 0;
+let pageDragMin = 0;
+let pageDragMax = 0;
+
+function onFullscreenPointerDown(e) {
+  pageDragActive = false;
+  pageDragStartY = e.clientY;
+  pageDragBaseOffset = loadPageOffset();
+  clearTimeout(pagePressTimer);
+  if (document.body.getAttribute('data-layout') !== 'portrait') return; // 僅直式支援拖曳，橫式僅短按有效
+  pagePressTimer = setTimeout(() => {
+    pageDragActive = true;
+    const vh = window.innerHeight;
+    pageDragMin = -Math.round(vh * 0.6);
+    pageDragMax = Math.round(vh * 0.3);
+    const btn = document.getElementById('mc-fullscreen');
+    if (btn) btn.classList.add('dragging');
+    if (navigator.vibrate) { try { navigator.vibrate(15); } catch (err) {} }
+  }, CONTROLS_LONG_PRESS_MS);
+  const btn = document.getElementById('mc-fullscreen');
+  if (btn && btn.setPointerCapture) { try { btn.setPointerCapture(e.pointerId); } catch (err) {} }
+}
+function onFullscreenPointerMove(e) {
+  if (!pageDragActive) return;
+  e.preventDefault();
+  const delta = e.clientY - pageDragStartY;
+  const next = Math.max(pageDragMin, Math.min(pageDragMax, pageDragBaseOffset + delta));
+  applyPageOffset(next);
+}
+function onFullscreenPointerUp(e) {
+  clearTimeout(pagePressTimer);
+  const btn = document.getElementById('mc-fullscreen');
+  if (pageDragActive) {
+    const delta = e.clientY - pageDragStartY;
+    const finalOffset = Math.max(pageDragMin, Math.min(pageDragMax, pageDragBaseOffset + delta));
+    applyPageOffset(finalOffset);
+    savePageOffset(finalOffset);
+    if (btn) btn.classList.remove('dragging');
+  } else {
+    toggleFullScreen();
+  }
+  pageDragActive = false;
+}
+(function bindFullscreenDrag() {
+  const btn = document.getElementById('mc-fullscreen');
+  if (!btn) return;
+  btn.addEventListener('pointerdown', onFullscreenPointerDown);
+  btn.addEventListener('pointermove', onFullscreenPointerMove);
+  btn.addEventListener('pointerup', onFullscreenPointerUp);
+  btn.addEventListener('pointercancel', onFullscreenPointerUp);
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+})();
+
+// 讓遊玩區永遠依照 336:600 的正確比例縮放，不再頂滿螢幕左右或上下
+const GAME_RATIO = 336 / 600;
+function fitGameContainer() {
+  const panel = document.querySelector('.center-panel');
+  const box = document.querySelector('.game-container');
+  if (!panel || !box) return;
+
+  if (!isMobileLayoutActive()) {
+    box.style.width = '';
+    box.style.height = '';
+    return;
+  }
+
+  const sideMargin = 16; // 保留左右可見邊距，避免遊玩區直接頂到螢幕最左最右
+  const availW = panel.clientWidth - sideMargin * 2;
+  const availH = panel.clientHeight;
+  if (availW <= 0 || availH <= 0) return;
+
+  let w = availH * GAME_RATIO;
+  let h = availH;
+  if (w > availW) { w = availW; h = availW / GAME_RATIO; }
+
+  box.style.width = w + 'px';
+  box.style.height = h + 'px';
+}
+
+// 五選三手牌區：直式時定位在遊玩區「紅線」下方一點點的位置（不緊貼紅線）
+// 紅線在畫布高度 60/600 = 10% 處（見 drawFrame 裡的安全線）
+const RED_LINE_RATIO = 60 / 600;
+const HAND_ROW_GAP_BELOW_LINE = 14; // 紅線下方留的間距，避免緊貼
+function positionHandRow() {
+  const hand = document.querySelector('.hand-container-vertical');
+  if (!hand) return;
+  if (document.body.getAttribute('data-layout') !== 'portrait' || !isMobileLayoutActive()) {
+    hand.style.top = '';
+    return;
+  }
+  const box = document.querySelector('.game-container');
+  const wrapper = document.querySelector('.layout-wrapper');
+  if (!box || !wrapper) return;
+  // 量測「未套用拖曳位移」時的自然位置：若此時 box 已經有長按拖曳套用的 transform，
+  // 直接讀 getBoundingClientRect 會把那個位移也讀進來，之後又疊加一次 transform，造成位移被算兩次。
+  // 所以量測前先暫時拿掉 transform，量完再還原，確保這裡永遠是「未拖曳」的基準位置。
+  const prevTransform = box.style.transform;
+  if (prevTransform) box.style.transform = 'none';
+  const boxRect = box.getBoundingClientRect();
+  if (prevTransform) box.style.transform = prevTransform;
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const redLineY = boxRect.top + boxRect.height * RED_LINE_RATIO;
+  hand.style.top = Math.round(redLineY - wrapperRect.top + HAND_ROW_GAP_BELOW_LINE) + 'px';
+}
+
+function refreshLayout() {
+  autoDetectLayout();
+  requestAnimationFrame(() => {
+    fitGameContainer();
+    applyControlsOffset(loadControlsOffset());
+    positionHandRow();
+    refreshPageOffset();
+  });
+}
+
+// iOS Safari 網址列展開/收起（minibar）時，實際看得到的區域高度會動態變化，
+// 但一般 position:fixed 元素不會自動跟著調整，導致全螢幕遮罩（大廳選單、開局過場）
+// 蓋不滿、或蓋過頭遮住底部按鈕。這裡用 visualViewport 即時同步這些遮罩的實際高度/位置。
+function syncOverlaysToVisualViewport() {
+  if (!window.visualViewport) return;
+  const vv = window.visualViewport;
+  const overlays = document.querySelectorAll('.modal-overlay, .game-intro-overlay, #howToPlayOverlay, #debugPanel');
+  overlays.forEach(el => {
+    el.style.height = vv.height + 'px';
+    el.style.top = vv.offsetTop + 'px';
+  });
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', syncOverlaysToVisualViewport);
+  window.visualViewport.addEventListener('scroll', syncOverlaysToVisualViewport);
+}
+syncOverlaysToVisualViewport();
+
+refreshLayout();
+// 用 ResizeObserver 監看遊玩區實際的渲染尺寸，一旦真正確定下來就重新定位五選三手牌區。
+// 比單純依賴 requestAnimationFrame 更可靠：手機實際旋轉時，瀏覽器網址列/工具列的收合動畫
+// 常常會橫跨好幾個 frame 才穩定，單一 rAF 有時會讀到「還沒定型」的尺寸，導致手牌位置忽高忽低。
+if (window.ResizeObserver) {
+  const gameContainerEl = document.querySelector('.game-container');
+  if (gameContainerEl) {
+    let resizeObserverFrame = null;
+    const gameContainerObserver = new ResizeObserver(() => {
+      if (resizeObserverFrame) cancelAnimationFrame(resizeObserverFrame);
+      resizeObserverFrame = requestAnimationFrame(() => { positionHandRow(); });
+    });
+    gameContainerObserver.observe(gameContainerEl);
+  }
+}
+window.addEventListener('resize', refreshLayout);
+window.addEventListener('orientationchange', refreshLayout);
+// 手機瀏覽器旋轉時，網址列/工具列收合經常是「resize 事件先觸發、但實際視窗高度晚幾百毫秒才真正定型」，
+// 且部分手機瀏覽器（尤其 iOS Safari）在這個過程中不會再補發第二次 resize 事件。
+// 因此額外用 visualViewport 監聽，並在旋轉後補一次延遲重算，確保最終一定會用「真正穩定後」的尺寸校正一次。
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', refreshLayout);
+}
+window.addEventListener('orientationchange', () => {
+  setTimeout(refreshLayout, 150);
+  setTimeout(refreshLayout, 400);
+  setTimeout(refreshLayout, 700);
+});
+
+function resetGame() { if (myRole === 'P1' && physicsWorker) physicsWorker.postMessage({ type: 'INIT' }); }
+
+function drawFrame() {
+  ctx.fillStyle = "#141417"; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  ctx.save(); ctx.strokeStyle = '#b71c1c'; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(0, 60); ctx.lineTo(CANVAS_WIDTH, 60); ctx.stroke(); ctx.restore();
+
+  const bodiesToRender = myRole === 'P1' ? localBodies : (myRole === 'P2' ? getInterpolatedBodies() : []);
+  bodiesToRender.forEach(body => {
+    ctx.fillStyle = body.color || '#94a3b8'; ctx.strokeStyle = '#18181c'; ctx.lineWidth = 1;
+    if (body.tileGrid) { drawTileRun(ctx, body.x, body.y, body.angle, body.tileGrid.rows === 1 ? body.tileGrid.cols : body.tileGrid.rows, TILE_SIZE, body.tileGrid.rows !== 1); return; }
+    body.parts.forEach((part, index) => {
+      if (index === 0 && body.parts.length > 1) return;
+      if (part.tileCount) drawTileRun(ctx, part.x, part.y, body.angle, part.tileCount, TILE_SIZE, !!part.vertical);
+      else if (part.vertices) {
+        ctx.beginPath(); ctx.moveTo(part.vertices[0].x, part.vertices[0].y);
+        for (let j = 1; j < part.vertices.length; j++) ctx.lineTo(part.vertices[j].x, part.vertices[j].y);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    });
+  });
+
+  if (gameState === 'POSITIONING' && activeMatrix) {
+    drawMatrixToCanvas(ctx, activeMatrix, activeShape.color, posX, posY, TILE_SIZE, 0.6, false);
+    const halfWidth = (activeMatrix[0].length * TILE_SIZE) / 2; const lineStartY = posY + (activeMatrix.length * TILE_SIZE) / 2;
+    ctx.save(); ctx.strokeStyle = '#5c5c60'; ctx.setLineDash([4, 4]); ctx.beginPath();
+    ctx.moveTo(posX - halfWidth, lineStartY); ctx.lineTo(posX - halfWidth, CANVAS_HEIGHT);
+    ctx.moveTo(posX, lineStartY); ctx.lineTo(posX, CANVAS_HEIGHT);
+    ctx.moveTo(posX + halfWidth, lineStartY); ctx.lineTo(posX + halfWidth, CANVAS_HEIGHT);
+    ctx.stroke(); ctx.restore();
+  }
+}
+
+let renderLoopErrorLogged = false;
+function renderLoop() {
+  try {
+    drawFrame();
+  } catch (e) {
+    if (!renderLoopErrorLogged) {
+      renderLoopErrorLogged = true;
+      debugLog('renderLoop/drawFrame threw (further repeats suppressed): ' + e.message, true);
+    }
+  }
+  requestAnimationFrame(renderLoop);
+}
+
+requestAnimationFrame(renderLoop);
+
+const LOBBY_LIGHTNING_MATRIX = [[1, 0], [1, 1], [0, 1]]; 
+function renderLobbyLightningIcon(containerId, color, size = 9) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const grid = document.createElement('div');
+  grid.style.display = 'grid';
+  grid.style.gridTemplateColumns = `repeat(2, ${size}px)`;
+  grid.style.gridTemplateRows = `repeat(3, ${size}px)`;
+  grid.style.gap = '1px';
+  LOBBY_LIGHTNING_MATRIX.forEach((row, r) => row.forEach((v, c) => {
+    if (v === 1) {
+      const cell = document.createElement('div');
+      cell.style.background = color; cell.style.border = '1px solid #18181c';
+      cell.style.gridColumn = (c + 1) + ' / span 1'; cell.style.gridRow = (r + 1) + ' / span 1';
+      grid.appendChild(cell);
+    }
+  }));
+  el.appendChild(grid);
+}
+function renderLobbyTwoLightning(containerId, colorA, colorB) {
+  renderLobbyLightningIcon(containerId, colorA);
+  renderLobbyLightningIcon(containerId, colorB);
+}
+renderLobbyLightningIcon('iconSolo', '#c6b7b2', 11);
+renderLobbyTwoLightning('iconCoop', '#c6b7b2', '#cbbe93');
+renderLobbyTwoLightning('iconPvpDrops', '#c6b7b2', '#cbbe93');
+renderLobbyTwoLightning('iconPvpScore', '#c6b7b2', '#cbbe93');
+</script>
+
+</body>
+</html>
