@@ -60,7 +60,7 @@ th{background:#222a39}
   </div>
   <div id="grid">
     <div class="card">
-      <div class="tabs"><button id="tabBar" class="on">測試 1：滑動色條（按 D）</button><button id="tabCor">測試 2：子彈長廊（方向鍵/WASD）</button></div>
+      <div class="tabs"><button id="tabBar" class="on">測試 1：滑動色條（按 D）</button><button id="tabCor">測試 2：子彈長廊（方向鍵/WASD）</button><button id="tabBall">測試 3：管道推擠（方向鍵/WASD）</button></div>
 
       <div id="secBar">
         <div class="barwrap" data-i="0"><b>色條 A（中等綠區）</b> <button class="startbar pri">開始</button><div class="bar"><div class="g"></div><div class="ptr"></div></div></div>
@@ -72,6 +72,13 @@ th{background:#222a39}
         <button id="corStart" class="pri">開始 / 重來</button> <button id="corStop">停止</button>
         <canvas id="cv" width="1000" height="420"></canvas>
         <div id="corinfo">從下走道走到上走道，再走回下走道，重複。被子彈打到會回到起點。</div>
+      </div>
+
+      <div id="secBall" style="display:none">
+        <button id="ballStart" class="pri">開始 / 重來</button> <button id="ballStop">停止</button> <button id="ballAll">全員同步開始（P1）</button>
+        <canvas id="cv3" width="1000" height="180"></canvas>
+        <div id="ballinfo">所有人都按「開始」後，在管子裡互相推擠。P1 物理為權威，其他人本地預測自己、插值看別人。</div>
+        <div class="hint">看這幾個數字：<b>預測誤差</b>＝你以為自己在的位置 vs P1 認定的位置差多少 px；<b>拉回次數</b>＝誤差超過 8px 的次數（球被突然拉走的感覺）；<b>快照間隔最大</b>＝P1 的位置更新最久斷多久；<b>緩衝不足</b>＝別人的球因為資料太晚而卡住或外插的次數。白色虛線圈＝P1 最新傳給你的你的位置。</div>
       </div>
     </div>
 
@@ -87,7 +94,14 @@ th{background:#222a39}
       <label>回溯緩衝 ms<input id="p_buf" type="number" value="150" step="10"></label>
       <label>人工單向延遲 ms（兩端各加）<input id="p_delay" type="number" value="0" step="10"></label>
       <label>人工抖動 ms（隨機 0~值）<input id="p_jitter" type="number" value="0" step="5"></label>
-      <div class="chk"><input id="bot" type="checkbox"><label style="margin:0">我這個視窗用 Bot（色條完美時機按 D／長廊直走）</label></div>
+      <label>【推擠】碰撞推力（0~1，越小越輕）<input id="p_push" type="number" value="0.4" step="0.05"></label>
+      <label>【推擠】快照頻率 Hz<input id="p_snap" type="number" value="30" step="10"></label>
+      <label>【推擠】別人球的插值延遲 ms<input id="p_interp" type="number" value="100" step="10"></label>
+      <label>【推擠】P1 輸入緩衝 tick（1tick≈16ms）<input id="p_jbuf" type="number" value="3" step="1"></label>
+      <label>【推擠】客戶端預測自己<select id="p_pred"><option value="1">開</option><option value="0">關（只看 P1 快照）</option></select></label>
+      <label>【推擠】預測時包含碰撞<select id="p_predcol"><option value="1">開</option><option value="0">關</option></select></label>
+      <div class="chk"><input id="bot" class="local" type="checkbox"><label style="margin:0">我這個視窗用 Bot（色條完美時機按 D／長廊直走／推擠左右亂動）</label></div>
+      <div class="chk"><input id="ghost" class="local" type="checkbox"><label style="margin:0">推擠：顯示 P1 傳給我的位置（白色虛線圈）</label></div>
     </div>
   </div>
   <div class="card" id="stats"></div>
@@ -102,12 +116,12 @@ const W=1000,H=420,LANE=50;
 
 let peer=null,isHost=false,slot=0,hostConn=null,roomCode='';
 const conns={}, S={}, hist={};
-let cfg={period:2000,wA:.15,wB:.05,trials:30,speed:160,interval:350,jmode:'A',buf:150,delay:0,jitter:0,epoch:now(),seed:(Math.random()*1e9)|0};
+let cfg={period:2000,wA:.15,wB:.05,trials:30,speed:160,interval:350,jmode:'A',buf:150,delay:0,jitter:0,push:.4,snap:30,interp:100,jbuf:3,pred:1,predcol:1,epoch:now(),seed:(Math.random()*1e9)|0};
 let offset=0, samples=[], rtts=[], pingId=0, sentP={}, fin=0, lost=0, connT='?', allStats=[];
 const hostNow=()=>isHost?now():now()+offset;
 const ready=()=>isHost||samples.length>=3;
 
-function newStat(){return{conn:'?',rtt:null,bar:[{n:0,nh:0,rh:0,sdn:0,sdr:0},{n:0,nh:0,rh:0,sdn:0,sdr:0}],cor:{cross:0,local:{},host:{},running:false}}}
+function newStat(){return{conn:'?',rtt:null,bar:[{n:0,nh:0,rh:0,sdn:0,sdr:0},{n:0,nh:0,rh:0,sdn:0,sdr:0}],cor:{cross:0,local:{},host:{},running:false},w:null}}
 function send(c,m){
   if(!c||!c.open)return;
   const d=cfg.delay+Math.random()*cfg.jitter;
@@ -162,10 +176,11 @@ function enterApp(){
   $('#lobby').style.display='none';$('#app').style.display='block';
   $('#room').textContent=roomCode;$('#me').textContent='P'+slot+(isHost?'（主機）':'');
   $('#roleHint').textContent=isHost?'（你可調整，全員同步）':'（由 P1 控制）';
-  $$('.p input:not(#bot),.p select').forEach(e=>e.disabled=!isHost);
+  $$('.p input:not(.local),.p select').forEach(e=>e.disabled=!isHost);
+  $('#ballAll').style.display=isHost?'':'none';
   applyCfgToUI();renderBarGeometry();
-  if(isHost){setInterval(broadcastStats,1000);setInterval(hostJudgeTick,16)}
-  else{setInterval(pingTick,250);setInterval(report,1000);setInterval(async()=>{connT=await connType(hostConn)},3000)}
+  if(isHost){setInterval(broadcastStats,1000);setInterval(hostJudgeTick,16);setInterval(worldLoop,8)}
+  else{setInterval(pingTick,250);setInterval(report,1000);setInterval(ballLocalTick,8);setInterval(async()=>{connT=await connType(hostConn)},3000)}
   requestAnimationFrame(frame);
 }
 
@@ -209,6 +224,8 @@ function guestRecv(m){
   else if(m.t==='cfg'){cfg=m.cfg;applyCfgToUI();renderBarGeometry();}
   else if(m.t==='stats'){allStats=m.s;renderStats();}
   else if(m.t==='res'){showBarResult(m);}
+  else if(m.t==='snap'){onSnap(m);}
+  else if(m.t==='wgo'){startWorld();}
 }
 function hostRecv(s,m){
   const st=S[s];if(!st)return;const c=conns[s];
@@ -231,10 +248,14 @@ function hostRecv(s,m){
   }
   else if(m.t==='chit'){st.cor.local[m.id]=m.ts;}
   else if(m.t==='cross'){st.cor.cross=m.n;}
+  else if(m.t==='wstart'){world.pl[s]={s:spawn(s),q:{},next:1,started:false,last:[0,0],starved:0,ack:0};st.w={mean:0,max:0,snaps:0,gap:0,under:0};}
+  else if(m.t==='wstop'){const p=world.pl[s];if(p){st.w=st.w||{};st.w.starved=p.starved;delete world.pl[s]}}
+  else if(m.t==='inp'){const p=world.pl[s];if(!p)return;for(const e of m.k){if(e[0]>=p.next&&!p.q[e[0]])p.q[e[0]]=[e[1],e[2]]}}
+  else if(m.t==='wrep'){st.w=Object.assign(st.w||{},m.w);}
 }
 
 /* ---------- 參數 ---------- */
-const PF=['period','wA','wB','trials','speed','interval','jmode','buf','delay','jitter'];
+const PF=['period','wA','wB','trials','speed','interval','jmode','buf','delay','jitter','push','snap','interp','jbuf','pred','predcol'];
 function applyCfgToUI(){PF.forEach(k=>{$('#p_'+k).value=cfg[k]})}
 PF.forEach(k=>$('#p_'+k).addEventListener('change',()=>{
   if(!isHost)return;
@@ -293,7 +314,7 @@ addEventListener('keydown',e=>{
 /* ---------- 子彈長廊 ---------- */
 const cor={running:false,x:W/2,y:H-LANE/2,goal:'top',cross:0,hits:0,flash:0,seen:{}};
 const keys={};
-addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=1;if(e.key.startsWith('Arrow')&&$('#secCor').style.display!=='none')e.preventDefault()});
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=1;if(e.key.startsWith('Arrow')&&($('#secCor').style.display!=='none'||$('#secBall').style.display!=='none'))e.preventDefault()});
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=0});
 function rnd(k,salt){
   let x=Math.imul(k+1,374761393)^Math.imul(salt,668265263)^cfg.seed;
@@ -351,6 +372,7 @@ function frame(){
   }
   if(cor.flash>0)cor.flash-=dt*1000;
   if($('#secCor').style.display!=='none')drawCor();
+  if($('#secBall').style.display!=='none')drawBall();
   requestAnimationFrame(frame);
 }
 function crossed(){
@@ -395,6 +417,203 @@ function hostJudgeTick(){
   }
 }
 
+/* ---------- 測試 3：管道推擠 ---------- */
+const BW=1000,BH=180,BR=16,DT=1/60,ACC=1400,MAXV=260,DRAG=3,SNAP_ERR=8;
+const BCOL=['','#ef4444','#facc15','#22c55e','#38bdf8'];
+const r3=v=>Math.round(v*1000)/1000;
+const world={pl:{},acc:0,last:0,tick:0};
+const ball={run:false,n:0,s:null,hist:{},inp:{},acc:0,lt:0,lastSend:0,sentN:0,ox:0,oy:0,errs:[],snaps:0,gaps:[],under:0,lastArr:0,lastTh:0,rbuf:{},disp:{},lastRep:0};
+const spawn=k=>({x:100+150*(k-1),y:BH/2,vx:0,vy:0});
+
+function integ(s,ax,ay){
+  s.vx+=ax*ACC*DT;s.vy+=ay*ACC*DT;
+  const k=Math.exp(-DRAG*DT);s.vx*=k;s.vy*=k;
+  const sp=Math.hypot(s.vx,s.vy);if(sp>MAXV){s.vx*=MAXV/sp;s.vy*=MAXV/sp}
+  s.x+=s.vx*DT;s.y+=s.vy*DT;
+}
+function wallC(s){
+  if(s.x<BR){s.x=BR;if(s.vx<0)s.vx*=-.3}
+  if(s.x>BW-BR){s.x=BW-BR;if(s.vx>0)s.vx*=-.3}
+  if(s.y<BR){s.y=BR;if(s.vy<0)s.vy*=-.3}
+  if(s.y>BH-BR){s.y=BH-BR;if(s.vy>0)s.vy*=-.3}
+}
+// ma/mb：兩球各自被推動的比例（0.5/0.5 = 兩邊都動；0.5/0 = 只推自己，用在客戶端預測）
+function pairC(a,b,ma,mb){
+  let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
+  if(d>=2*BR)return;
+  if(d<1e-6){dx=1;dy=0;d=1}
+  const nx=dx/d,ny=dy/d,ov=(2*BR-d)*cfg.push;
+  a.x-=nx*ov*ma;a.y-=ny*ov*ma;b.x+=nx*ov*mb;b.y+=ny*ov*mb;
+  const vn=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
+  if(vn<0){
+    const j=-1.3*vn*.5*cfg.push;
+    a.vx-=nx*j*ma*2;a.vy-=ny*j*ma*2;b.vx+=nx*j*mb*2;b.vy+=ny*j*mb*2;
+  }
+}
+function localInput(){
+  if($('#bot').checked){
+    const t=now()/1000;
+    return[Math.sin(t*.9+slot*1.7)>0?1:-1,Math.round(Math.sin(t*1.4+slot*2.3)*80)/100];
+  }
+  if($('#secBall').style.display==='none')return[0,0];
+  return[(keys['arrowright']||keys['d']?1:0)-(keys['arrowleft']||keys['a']?1:0),(keys['arrowdown']||keys['s']?1:0)-(keys['arrowup']||keys['w']?1:0)];
+}
+function stepOwn(s0,inp){
+  const s={x:s0.x,y:s0.y,vx:s0.vx,vy:s0.vy};
+  integ(s,inp[0],inp[1]);
+  if(cfg.predcol==1)for(const k in ball.disp){
+    if(+k===slot)continue;const o=ball.disp[k];
+    if(o)pairC(s,{x:o.x,y:o.y,vx:0,vy:0},.5,0);
+  }
+  wallC(s);return s;
+}
+
+function startWorld(){
+  if(!ready()){$('#ballinfo').textContent='校時中，請稍候…';return}
+  Object.assign(ball,{run:true,n:0,s:spawn(slot),hist:{},inp:{},ox:0,oy:0,errs:[],snaps:0,gaps:[],under:0,lastArr:0,lastTh:0,rbuf:{},disp:{},sentN:0,acc:0,lt:now(),lastSend:0,lastRep:0});
+  if(isHost){world.pl[1]={s:spawn(1),q:{},next:1,started:true,last:[0,0],starved:0,ack:0};S[1].w={mean:0,max:0,snaps:0,gap:0,under:0};world.last=0}
+  else send(hostConn,{t:'wstart'});
+}
+function stopWorld(){
+  ball.run=false;
+  if(isHost)delete world.pl[1];else send(hostConn,{t:'wstop'});
+}
+$('#ballStart').onclick=startWorld;
+$('#ballStop').onclick=stopWorld;
+$('#ballAll').onclick=()=>{for(const s in conns)send(conns[s],{t:'wgo'});startWorld();};
+
+/* P1：固定 60Hz 世界物理 */
+function worldLoop(){
+  const t=now();if(!world.last)world.last=t;
+  world.acc+=Math.min(100,t-world.last);world.last=t;
+  while(world.acc>=DT*1000){world.acc-=DT*1000;worldStep();}
+}
+function worldStep(){
+  const ids=Object.keys(world.pl).map(Number).sort((a,b)=>a-b);
+  if(!ids.length)return;
+  world.tick++;
+  for(const k of ids){
+    const p=world.pl[k];
+    if(k===1){const i=localInput();integ(p.s,i[0],i[1]);continue}
+    if(!p.started){if(Object.keys(p.q).length>=cfg.jbuf)p.started=true;else continue}
+    const steps=Object.keys(p.q).length>6?2:1;
+    for(let q=0;q<steps;q++){
+      const inp=p.q[p.next];
+      if(!inp){if(q===0){p.starved++;integ(p.s,p.last[0],p.last[1])}break}
+      delete p.q[p.next];p.ack=p.next;p.next++;p.last=inp;
+      integ(p.s,inp[0],inp[1]);
+    }
+  }
+  for(let a=0;a<ids.length;a++)for(let b=a+1;b<ids.length;b++)pairC(world.pl[ids[a]].s,world.pl[ids[b]].s,.5,.5);
+  for(const k of ids)wallC(world.pl[k].s);
+  const every=Math.max(1,Math.round(60/cfg.snap));
+  if(world.tick%every===0){
+    const P={};
+    for(const k of ids){const p=world.pl[k];P[k]={x:r3(p.s.x),y:r3(p.s.y),vx:r3(p.s.vx),vy:r3(p.s.vy),a:p.ack}}
+    const m={t:'snap',th:now(),p:P};
+    for(const s in conns)send(conns[s],m);
+  }
+}
+
+/* 客戶端：預測 + 校正 */
+function onSnap(m){
+  if(m.th<=ball.lastTh)return;
+  const t=now();
+  if(ball.lastArr){ball.gaps.push(t-ball.lastArr);if(ball.gaps.length>100)ball.gaps.shift()}
+  ball.lastArr=t;ball.lastTh=m.th;
+  for(const k in ball.rbuf)if(!(k in m.p))delete ball.rbuf[k];
+  for(const k in m.p){
+    const e=m.p[k],b=ball.rbuf[k]||(ball.rbuf[k]=[]);
+    b.push({th:m.th,x:e.x,y:e.y});if(b.length>40)b.shift();
+  }
+  const me=m.p[slot];
+  if(me&&ball.run&&cfg.pred==1&&me.a>=1&&ball.hist[me.a]){
+    const e=ball.hist[me.a],err=Math.hypot(me.x-e.x,me.y-e.y);
+    ball.errs.push(err);if(ball.errs.length>300)ball.errs.shift();
+    if(err>SNAP_ERR)ball.snaps++;
+    const old=ball.s;
+    let s={x:me.x,y:me.y,vx:me.vx,vy:me.vy};
+    ball.hist[me.a]={x:s.x,y:s.y};
+    for(let k=me.a+1;k<=ball.n;k++){s=stepOwn(s,ball.inp[k]);ball.hist[k]={x:s.x,y:s.y}}
+    ball.ox+=old.x-s.x;ball.oy+=old.y-s.y;ball.s=s;
+    if(Math.hypot(ball.ox,ball.oy)>60){ball.ox=0;ball.oy=0}
+  }
+}
+function updateDisp(count){
+  const rt=hostNow()-cfg.interp;let under=false;
+  for(const k in ball.rbuf){
+    const b=ball.rbuf[k],last=b[b.length-1];
+    if(rt>=last.th){ball.disp[k]={x:last.x,y:last.y};if(+k!==slot)under=true;continue}
+    let r=b[0];
+    for(let i=b.length-1;i>0;i--){
+      if(b[i-1].th<=rt){const a=b[i-1],c=b[i],f=(rt-a.th)/(c.th-a.th||1);r={x:a.x+(c.x-a.x)*f,y:a.y+(c.y-a.y)*f};break}
+    }
+    ball.disp[k]={x:r.x,y:r.y};
+  }
+  for(const k in ball.disp)if(!(k in ball.rbuf))delete ball.disp[k];
+  if(count&&under)ball.under++;
+}
+function ballStats(){
+  const e=ball.errs;
+  return{mean:e.length?e.reduce((a,b)=>a+b,0)/e.length:0,max:e.length?Math.max(...e):0,snaps:ball.snaps,gap:ball.gaps.length?Math.max(...ball.gaps):0,under:ball.under};
+}
+function ballLocalTick(){ // 只有 P2~P4 使用
+  const t=now();
+  if(!ball.lt)ball.lt=t;
+  ball.acc+=Math.min(100,t-ball.lt);ball.lt=t;
+  if(!(ball.run&&ready())){ball.acc=0;return}
+  updateDisp(true);
+  while(ball.acc>=DT*1000){
+    ball.acc-=DT*1000;
+    ball.n++;
+    const i=localInput();ball.inp[ball.n]=i;
+    ball.s=stepOwn(ball.s,i);ball.hist[ball.n]={x:ball.s.x,y:ball.s.y};
+    delete ball.hist[ball.n-240];delete ball.inp[ball.n-240];
+  }
+  if(t-ball.lastSend>=33){
+    ball.lastSend=t;
+    const k=[];
+    for(let n=Math.max(1,ball.sentN-3);n<=ball.n;n++){const i=ball.inp[n];if(i)k.push([n,i[0],i[1]])}
+    ball.sentN=ball.n;
+    send(hostConn,{t:'inp',k});
+  }
+  if(t-ball.lastRep>=1000){ball.lastRep=t;send(hostConn,{t:'wrep',w:ballStats()})}
+}
+function drawBall(){
+  const g=$('#cv3').getContext('2d');
+  if(!isHost)updateDisp(false);
+  g.fillStyle='#0b0e14';g.fillRect(0,0,BW,BH);
+  g.fillStyle='#1b2335';g.fillRect(0,0,BW,BH);
+  g.strokeStyle='#3a4a6b';g.lineWidth=4;g.strokeRect(2,2,BW-4,BH-4);
+  const list=[];
+  if(isHost){
+    for(const k in world.pl)list.push({k:+k,x:world.pl[k].s.x,y:world.pl[k].s.y});
+  }else{
+    for(const k in ball.disp){if(+k===slot&&ball.run&&cfg.pred==1)continue;list.push({k:+k,x:ball.disp[k].x,y:ball.disp[k].y})}
+    if(ball.run&&cfg.pred==1&&ball.s){
+      ball.ox*=.85;ball.oy*=.85;
+      list.push({k:slot,x:ball.s.x+ball.ox,y:ball.s.y+ball.oy});
+    }
+    if($('#ghost').checked&&ball.run){
+      const b=ball.rbuf[slot];
+      if(b&&b.length){const l=b[b.length-1];g.setLineDash([5,4]);g.strokeStyle='#fff';g.lineWidth=2;g.beginPath();g.arc(l.x,l.y,BR,0,7);g.stroke();g.setLineDash([])}
+    }
+  }
+  g.font='bold 13px sans-serif';g.textAlign='center';g.textBaseline='middle';
+  for(const b of list){
+    g.fillStyle=BCOL[b.k];g.beginPath();g.arc(b.x,b.y,BR,0,7);g.fill();
+    if(b.k===slot){g.strokeStyle='#fff';g.lineWidth=3;g.stroke()}
+    g.fillStyle='#000';g.fillText('P'+b.k,b.x,b.y);
+  }
+  g.textAlign='start';g.textBaseline='alphabetic';
+  if(isHost){
+    $('#ballinfo').textContent=(ball.run?'你(P1)進行中':'你(P1)未開始')+'｜場上玩家：'+(Object.keys(world.pl).map(k=>'P'+k).join(' ')||'無')+'｜P1 是物理權威，自己沒有延遲';
+  }else if(ball.run){
+    const w=ballStats();
+    $('#ballinfo').textContent='進行中｜預測誤差 平均 '+w.mean.toFixed(1)+' / 最大 '+w.max.toFixed(1)+' px｜拉回 '+w.snaps+' 次｜快照間隔最大 '+w.gap.toFixed(0)+'ms｜緩衝不足 '+w.under+(cfg.pred==1?'':'｜（預測已關：你的球完全跟著 P1 快照走）');
+  }else $('#ballinfo').textContent='未開始';
+}
+
 /* ---------- 統計 ---------- */
 function summarize(s){
   const st=S[s];if(!st)return null;
@@ -404,7 +623,12 @@ function summarize(s){
   for(const k in L)if(L[k]<tn&&!(k in Ho))oL++;
   for(const k in Ho)if(Ho[k]<tn&&!(k in L))oH++;
   return{slot:s,conn:s===1?'—':st.conn,rtt:s===1?null:st.rtt,bar,
-    cor:{cross:st.cor.cross,lh:Object.keys(L).length,hh:Object.keys(Ho).length,oL,oH}};
+    cor:{cross:st.cor.cross,lh:Object.keys(L).length,hh:Object.keys(Ho).length,oL,oH},w:wsum(s)};
+}
+function wsum(s){
+  const st=S[s],w=st&&st.w,p=world.pl[s];
+  if(!w&&!p)return null;
+  return{mean:w?w.mean:null,max:w?w.max:null,snaps:w?w.snaps:0,gap:w?w.gap:null,under:w?w.under:0,starved:p?p.starved:((w&&w.starved)||0)};
 }
 function broadcastStats(){
   allStats=Object.keys(S).map(s=>summarize(+s)).filter(Boolean);
@@ -415,36 +639,42 @@ const pc=x=>x==null?'-':(x*100).toFixed(0)+'%';
 const ms=x=>x==null?'-':(x>=0?'+':'')+x.toFixed(0);
 const f1=x=>x==null?'-':x.toFixed(1);
 function renderStats(){
-  let h='<table><tr><th rowspan=2>玩家</th><th rowspan=2>連線類型</th><th colspan=5>網路 (ms)</th><th colspan=4>色條 A</th><th colspan=4>色條 B</th><th colspan=5>子彈長廊</th></tr>'+
+  let h='<table><tr><th rowspan=2>玩家</th><th rowspan=2>連線類型</th><th colspan=5>網路 (ms)</th><th colspan=4>色條 A</th><th colspan=4>色條 B</th><th colspan=5>子彈長廊</th><th colspan=6>管道推擠</th></tr>'+
   '<tr><th>RTT均</th><th>最大</th><th>抖動</th><th>P95</th><th>遺失</th>'+
   '<th>次數</th><th>樸素✅</th><th>回溯✅</th><th>偏差 樸/回</th>'+
   '<th>次數</th><th>樸素✅</th><th>回溯✅</th><th>偏差 樸/回</th>'+
-  '<th>走道</th><th>本地中</th><th>P1判中</th><th>P1判中/本地沒中</th><th>本地中/P1沒判</th></tr>';
+  '<th>走道</th><th>本地中</th><th>P1判中</th><th>P1判中/本地沒中</th><th>本地中/P1沒判</th>'+
+  '<th>誤差均px</th><th>誤差最大px</th><th>拉回次數</th><th>快照間隔max ms</th><th>緩衝不足</th><th>P1輸入缺口</th></tr>';
   for(const a of allStats){
     const r=a.rtt;
     h+='<tr><td style="color:'+COL[a.slot]+'"><b>P'+a.slot+'</b></td><td>'+a.conn+'</td>'+
     (r?'<td>'+f1(r.avg)+'</td><td>'+f1(r.max)+'</td><td>'+f1(r.jit)+'</td><td>'+f1(r.p95)+'</td><td>'+pc(r.loss)+'</td>':'<td colspan=5>—</td>');
     for(const b of a.bar)h+='<td>'+b.n+'</td><td>'+pc(b.nh)+'</td><td>'+pc(b.rh)+'</td><td>'+ms(b.dn)+' / '+ms(b.dr)+'</td>';
-    h+='<td>'+a.cor.cross+'</td><td>'+a.cor.lh+'</td><td>'+a.cor.hh+'</td><td>'+a.cor.oH+'</td><td>'+a.cor.oL+'</td></tr>';
+    h+='<td>'+a.cor.cross+'</td><td>'+a.cor.lh+'</td><td>'+a.cor.hh+'</td><td>'+a.cor.oH+'</td><td>'+a.cor.oL+'</td>';
+    const w=a.w;
+    h+=w?'<td>'+f1(w.mean)+'</td><td>'+f1(w.max)+'</td><td>'+w.snaps+'</td><td>'+(w.gap?w.gap.toFixed(0):'-')+'</td><td>'+w.under+'</td><td>'+(a.slot===1?'-':w.starved)+'</td></tr>':'<td colspan=6>-</td></tr>';
   }
   $('#stats').innerHTML=h+'</table><div class="hint" style="margin-top:6px">「P1判中/本地沒中」＝你畫面上閃過了卻被 P1 判中（最傷手感）；「本地中/P1沒判」＝你畫面被打到但 P1 沒判。P1 自己是對照組。</div>';
 }
 $('#btnCsv').onclick=()=>{
-  let c='player,conn,rttAvg,rttMax,jitter,p95,loss,A_n,A_naive,A_rewind,A_devN,A_devR,B_n,B_naive,B_rewind,B_devN,B_devR,cross,localHits,hostHits,hostOnly,localOnly\n';
+  let c='player,conn,rttAvg,rttMax,jitter,p95,loss,A_n,A_naive,A_rewind,A_devN,A_devR,B_n,B_naive,B_rewind,B_devN,B_devR,cross,localHits,hostHits,hostOnly,localOnly,ballErrMean,ballErrMax,ballSnaps,snapGapMax,underrun,starved\n';
   for(const a of allStats){const r=a.rtt||{};
     c+=['P'+a.slot,a.conn,r.avg,r.max,r.jit,r.p95,r.loss].join(',')+',';
     for(const b of a.bar)c+=[b.n,b.nh,b.rh,b.dn,b.dr].join(',')+',';
-    c+=[a.cor.cross,a.cor.lh,a.cor.hh,a.cor.oH,a.cor.oL].join(',')+'\n';}
+    const w=a.w||{};
+    c+=[a.cor.cross,a.cor.lh,a.cor.hh,a.cor.oH,a.cor.oL,w.mean,w.max,w.snaps,w.gap,w.under,w.starved].join(',')+'\n';}
   const u=URL.createObjectURL(new Blob([c],{type:'text/csv'}));
   const el=document.createElement('a');el.href=u;el.download='latency-test.csv';el.click();
 };
 
 /* ---------- 分頁 ---------- */
 function tab(w){
-  $('#secBar').style.display=w?'none':'block';$('#secCor').style.display=w?'block':'none';
-  $('#tabBar').classList.toggle('on',!w);$('#tabCor').classList.toggle('on',!!w);
+  $('#secBar').style.display=w===0?'block':'none';
+  $('#secCor').style.display=w===1?'block':'none';
+  $('#secBall').style.display=w===2?'block':'none';
+  $('#tabBar').classList.toggle('on',w===0);$('#tabCor').classList.toggle('on',w===1);$('#tabBall').classList.toggle('on',w===2);
 }
-$('#tabBar').onclick=()=>tab(0);$('#tabCor').onclick=()=>tab(1);
+$('#tabBar').onclick=()=>tab(0);$('#tabCor').onclick=()=>tab(1);$('#tabBall').onclick=()=>tab(2);
 </script>
 </body>
 </html>
