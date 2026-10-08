@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>即時性測試</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 system-ui,"Noto Sans TC",sans-serif;background:#12151c;color:#e6e9ef}
+button,input,select{font:inherit;color:inherit;background:#252b38;border:1px solid #3a4256;border-radius:6px;padding:6px 10px}
+button{cursor:pointer}button:hover:not(:disabled){background:#2f3748}button:disabled,input:disabled,select:disabled{opacity:.5;cursor:not-allowed}
+button.pri{background:#2563eb;border-color:#2563eb}
+h1{font-size:20px;margin:0 0 12px}
+#lobby{max-width:460px;margin:12vh auto;padding:24px;background:#1a1f2b;border-radius:12px}
+#lobby .row{display:flex;gap:8px;margin:12px 0;align-items:center}
+#lobby input{width:70px;font-size:20px;text-align:center}
+#msg{color:#fbbf24;min-height:20px}
+#app{display:none;padding:12px;max-width:1400px;margin:auto}
+#top{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+#top b{font-size:18px}
+#warn{display:none;background:#b91c1c;padding:6px 10px;border-radius:6px;margin-bottom:8px}
+#grid{display:grid;grid-template-columns:1fr 280px;gap:12px}
+@media(max-width:900px){#grid{grid-template-columns:1fr}}
+.card{background:#1a1f2b;border-radius:10px;padding:12px}
+.tabs{display:flex;gap:6px;margin-bottom:10px}
+.tabs button.on{background:#2563eb;border-color:#2563eb}
+.barwrap{margin:14px 0;padding:10px;border:2px solid transparent;border-radius:8px}
+.barwrap.act{border-color:#2563eb}
+.bar{position:relative;height:46px;background:#c0392b;border-radius:6px;overflow:hidden;margin:8px 0}
+.bar .g{position:absolute;top:0;bottom:0;background:#27ae60}
+.bar .ptr{position:absolute;top:0;bottom:0;width:4px;margin-left:-2px;background:#fff;box-shadow:0 0 6px #fff}
+#barinfo,#corinfo{min-height:44px;color:#cbd5e1}
+canvas{width:100%;background:#0b0e14;border-radius:8px;display:block}
+.p label{display:block;margin-top:8px;font-size:12px;color:#94a3b8}
+.p input,.p select{width:100%}
+.p .chk{display:flex;gap:6px;align-items:center;margin-top:10px}.p .chk input{width:auto}
+#stats{margin-top:12px;overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12px;white-space:nowrap}
+th,td{border:1px solid #2c3445;padding:4px 8px;text-align:center}
+th{background:#222a39}
+.hint{font-size:12px;color:#94a3b8}
+</style>
+</head>
+<body>
+<div id="lobby">
+  <h1>即時性測試（P1 主機權威）</h1>
+  <div class="row"><button class="pri" id="btnHost">建立房間（成為 P1）</button></div>
+  <div class="row">代碼 0~9：<input id="code" maxlength="1" inputmode="numeric"><button id="btnJoin">加入</button></div>
+  <div id="msg"></div>
+  <p class="hint">四個視窗測試時請「並排成四個獨立視窗」，不要用同一視窗的四個分頁，否則背景分頁會被瀏覽器降速，數據會失真。</p>
+</div>
+
+<div id="app">
+  <div id="warn">⚠ 這個視窗在背景，瀏覽器會降速，測試結果無效，請讓它保持在前景並可見。</div>
+  <div id="top">
+    <span>房間 <b id="room"></b></span>
+    <span>你是 <b id="me"></b></span>
+    <span id="live">校時中…</span>
+    <button id="btnCsv">匯出 CSV</button>
+  </div>
+  <div id="grid">
+    <div class="card">
+      <div class="tabs"><button id="tabBar" class="on">測試 1：滑動色條（按 D）</button><button id="tabCor">測試 2：子彈長廊（方向鍵/WASD）</button></div>
+
+      <div id="secBar">
+        <div class="barwrap" data-i="0"><b>色條 A（中等綠區）</b> <button class="startbar pri">開始</button><div class="bar"><div class="g"></div><div class="ptr"></div></div></div>
+        <div class="barwrap" data-i="1"><b>色條 B（窄綠區）</b> <button class="startbar pri">開始</button><div class="bar"><div class="g"></div><div class="ptr"></div></div></div>
+        <div id="barinfo">按「開始」選要測哪一條，指針進入綠區時按 D。</div>
+      </div>
+
+      <div id="secCor" style="display:none">
+        <button id="corStart" class="pri">開始 / 重來</button> <button id="corStop">停止</button>
+        <canvas id="cv" width="1000" height="420"></canvas>
+        <div id="corinfo">從下走道走到上走道，再走回下走道，重複。被子彈打到會回到起點。</div>
+      </div>
+    </div>
+
+    <div class="card p">
+      <b>參數</b> <span class="hint" id="roleHint"></span>
+      <label>指針週期 ms（來回一趟）<input id="p_period" type="number" value="2000" step="100"></label>
+      <label>綠區寬度 A（0~1）<input id="p_wA" type="number" value="0.15" step="0.01"></label>
+      <label>綠區寬度 B（0~1）<input id="p_wB" type="number" value="0.05" step="0.01"></label>
+      <label>色條測試次數<input id="p_trials" type="number" value="30"></label>
+      <label>子彈速度 px/s<input id="p_speed" type="number" value="160" step="10"></label>
+      <label>子彈間隔 ms<input id="p_interval" type="number" value="350" step="50"></label>
+      <label>長廊 host 判定<select id="p_jmode"><option value="A">A 最新位置（樸素）</option><option value="B">B 回溯判定（緩衝）</option></select></label>
+      <label>回溯緩衝 ms<input id="p_buf" type="number" value="150" step="10"></label>
+      <label>人工單向延遲 ms（兩端各加）<input id="p_delay" type="number" value="0" step="10"></label>
+      <label>人工抖動 ms（隨機 0~值）<input id="p_jitter" type="number" value="0" step="5"></label>
+      <div class="chk"><input id="bot" type="checkbox"><label style="margin:0">我這個視窗用 Bot（色條完美時機按 D／長廊直走）</label></div>
+    </div>
+  </div>
+  <div class="card" id="stats"></div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const now=()=>performance.now();
+const COL=['','#4aa3ff','#4ade80','#fbbf24','#f472b6'];
+const W=1000,H=420,LANE=50;
+
+let peer=null,isHost=false,slot=0,hostConn=null,roomCode='';
+const conns={}, S={}, hist={};
+let cfg={period:2000,wA:.15,wB:.05,trials:30,speed:160,interval:350,jmode:'A',buf:150,delay:0,jitter:0,epoch:now(),seed:(Math.random()*1e9)|0};
+let offset=0, samples=[], rtts=[], pingId=0, sentP={}, fin=0, lost=0, connT='?', allStats=[];
+const hostNow=()=>isHost?now():now()+offset;
+const ready=()=>isHost||samples.length>=3;
+
+function newStat(){return{conn:'?',rtt:null,bar:[{n:0,nh:0,rh:0,sdn:0,sdr:0},{n:0,nh:0,rh:0,sdn:0,sdr:0}],cor:{cross:0,local:{},host:{},running:false}}}
+function send(c,m){
+  if(!c||!c.open)return;
+  const d=cfg.delay+Math.random()*cfg.jitter;
+  const go=()=>{try{c.send(m)}catch(e){}};
+  d>0.5?setTimeout(go,d):go();
+}
+const msg=t=>$('#msg').textContent=t;
+
+/* ---------- 連線 ---------- */
+$('#btnHost').onclick=()=>{
+  const list=[0,1,2,3,4,5,6,7,8,9].sort(()=>Math.random()-.5);
+  tryRoom(list);
+};
+function tryRoom(list){
+  if(!list.length){msg('0~9 都被占用了');return}
+  const d=list.pop();
+  const p=new Peer('ltest-'+d);
+  p.on('open',()=>{peer=p;isHost=true;slot=1;roomCode=d;S[1]=newStat();cfg.epoch=now();enterApp();});
+  p.on('connection',onGuest);
+  p.on('error',e=>{
+    if(e.type==='unavailable-id'){p.destroy();tryRoom(list)}
+    else msg('錯誤：'+e.type);
+  });
+}
+function onGuest(conn){
+  conn.on('open',()=>{
+    const s=[2,3,4].find(x=>!conns[x]);
+    if(!s){conn.send({t:'full'});setTimeout(()=>conn.close(),300);return}
+    conns[s]=conn;conn._slot=s;S[s]=newStat();hist[s]=[];
+    send(conn,{t:'welcome',slot:s,cfg});
+    setInterval(async()=>{if(conns[s]===conn&&S[s])S[s].conn=S[s].conn});// placeholder
+  });
+  conn.on('data',m=>hostRecv(conn._slot,m));
+  conn.on('close',()=>{if(conn._slot){delete conns[conn._slot];delete S[conn._slot];delete hist[conn._slot]}});
+}
+$('#btnJoin').onclick=()=>{
+  const d=$('#code').value.trim();
+  if(!/^[0-9]$/.test(d)){msg('請輸入 0~9 的一位數代碼');return}
+  msg('連線中…');
+  const p=new Peer();
+  p.on('open',()=>{
+    peer=p;roomCode=d;
+    const c=p.connect('ltest-'+d,{reliable:false,serialization:'json'});
+    hostConn=c;
+    c.on('open',()=>{});
+    c.on('data',guestRecv);
+    c.on('close',()=>{$('#live').textContent='與 P1 斷線';});
+  });
+  p.on('error',e=>msg(e.type==='peer-unavailable'?'找不到這個房間':'錯誤：'+e.type));
+};
+function enterApp(){
+  $('#lobby').style.display='none';$('#app').style.display='block';
+  $('#room').textContent=roomCode;$('#me').textContent='P'+slot+(isHost?'（主機）':'');
+  $('#roleHint').textContent=isHost?'（你可調整，全員同步）':'（由 P1 控制）';
+  $$('.p input:not(#bot),.p select').forEach(e=>e.disabled=!isHost);
+  applyCfgToUI();renderBarGeometry();
+  if(isHost){setInterval(broadcastStats,1000);setInterval(hostJudgeTick,16)}
+  else{setInterval(pingTick,250);setInterval(report,1000);setInterval(async()=>{connT=await connType(hostConn)},3000)}
+  requestAnimationFrame(frame);
+}
+
+async function connType(c){
+  try{
+    const st=await c.peerConnection.getStats();let sel;
+    st.forEach(r=>{if(r.type==='transport'&&r.selectedCandidatePairId)sel=st.get(r.selectedCandidatePairId)});
+    if(!sel)st.forEach(r=>{if(r.type==='candidate-pair'&&r.state==='succeeded'&&(r.nominated||r.selected))sel=r});
+    if(sel){const l=st.get(sel.localCandidateId),rm=st.get(sel.remoteCandidateId);return(l&&l.candidateType)+'/'+(rm&&rm.candidateType)}
+  }catch(e){}
+  return'?';
+}
+
+/* ---------- 校時 / RTT ---------- */
+function pingTick(){
+  const id=++pingId;sentP[id]=now();
+  send(hostConn,{t:'ping',id,t0:sentP[id]});
+  const o=id-10;
+  if(o>0){fin++;if(sentP[o]!==undefined){lost++;delete sentP[o]}}
+}
+function rttStats(){
+  const a=rtts.slice(-100);if(!a.length)return null;
+  const avg=a.reduce((x,y)=>x+y,0)/a.length;
+  const jit=Math.sqrt(a.reduce((x,y)=>x+(y-avg)**2,0)/a.length);
+  const s=[...a].sort((x,y)=>x-y);
+  return{avg,min:s[0],max:s[s.length-1],jit,p95:s[Math.floor(s.length*.95)],loss:fin?lost/fin:0};
+}
+function report(){const r=rttStats();if(r)send(hostConn,{t:'rep',r,c:connT});}
+
+/* ---------- 接收 ---------- */
+function guestRecv(m){
+  if(m.t==='welcome'){slot=m.slot;cfg=m.cfg;enterApp();}
+  else if(m.t==='full'){msg('房間已滿（最多 P1~P4）');}
+  else if(m.t==='pong'){
+    const t1=now(),t0=sentP[m.id];if(t0===undefined)return;delete sentP[m.id];
+    const rtt=t1-t0;rtts.push(rtt);if(rtts.length>300)rtts.shift();
+    samples.push({rtt,off:m.th-(t0+rtt/2)});if(samples.length>20)samples.shift();
+    offset=samples.reduce((a,b)=>b.rtt<a.rtt?b:a).off;
+    const r=rttStats();$('#live').textContent='RTT '+rtt.toFixed(0)+'ms（均 '+r.avg.toFixed(1)+' / 抖動 '+r.jit.toFixed(1)+'）';
+  }
+  else if(m.t==='cfg'){cfg=m.cfg;applyCfgToUI();renderBarGeometry();}
+  else if(m.t==='stats'){allStats=m.s;renderStats();}
+  else if(m.t==='res'){showBarResult(m);}
+}
+function hostRecv(s,m){
+  const st=S[s];if(!st)return;const c=conns[s];
+  if(m.t==='ping')send(c,{t:'pong',id:m.id,t0:m.t0,th:now()});
+  else if(m.t==='rep'){st.rtt=m.r;st.conn=m.c;}
+  else if(m.t==='bstart'){st.bar[m.i]={n:0,nh:0,rh:0,sdn:0,sdr:0};}
+  else if(m.t==='press'){
+    const w=m.i?cfg.wB:cfg.wA;
+    const n=barEval(now(),w),r=barEval(m.ts,w);
+    recordBar(s,m.i,n,r);
+    send(c,{t:'res',seq:m.seq,i:m.i,n:n.hit,r:r.hit,dn:n.dev,dr:r.dev});
+  }
+  else if(m.t==='cstart'){st.cor={cross:0,local:{},host:{},running:false};hist[s]=[];}
+  else if(m.t==='pos'){
+    st.cor.running=!!m.run;
+    const h=hist[s]||(hist[s]=[]);
+    const e={t:m.ts,x:m.x,y:m.y};let i=h.length;
+    while(i>0&&h[i-1].t>e.t)i--;h.splice(i,0,e);
+    while(h.length&&h[0].t<h[h.length-1].t-3000)h.shift();
+  }
+  else if(m.t==='chit'){st.cor.local[m.id]=m.ts;}
+  else if(m.t==='cross'){st.cor.cross=m.n;}
+}
+
+/* ---------- 參數 ---------- */
+const PF=['period','wA','wB','trials','speed','interval','jmode','buf','delay','jitter'];
+function applyCfgToUI(){PF.forEach(k=>{$('#p_'+k).value=cfg[k]})}
+PF.forEach(k=>$('#p_'+k).addEventListener('change',()=>{
+  if(!isHost)return;
+  PF.forEach(q=>{const v=$('#p_'+q).value;cfg[q]=q==='jmode'?v:parseFloat(v)});
+  cfg.epoch=now();
+  renderBarGeometry();
+  for(const s in conns)send(conns[s],{t:'cfg',cfg});
+}));
+
+/* ---------- 色條測試 ---------- */
+const bar={i:null,n:0};
+let lastM=-1e9;
+function barPos(t){const u=(((t-cfg.epoch)/cfg.period)%1+1)%1;return u<.5?{p:2*u,d:1}:{p:2-2*u,d:-1}}
+function barEval(t,w){const{p,d}=barPos(t);return{hit:Math.abs(p-.5)<=w/2,dev:(p-.5)*d*(cfg.period/2)}}
+function renderBarGeometry(){
+  $$('.barwrap').forEach(el=>{
+    const w=el.dataset.i==='1'?cfg.wB:cfg.wA,g=el.querySelector('.g');
+    g.style.width=(w*100)+'%';g.style.left=((1-w)/2*100)+'%';
+  });
+}
+$$('.startbar').forEach(b=>b.onclick=()=>{
+  if(!ready()){$('#barinfo').textContent='校時中，請稍候…';return}
+  const i=+b.parentElement.dataset.i;
+  bar.i=i;bar.n=0;lastM=-1e9;
+  $$('.barwrap').forEach(e=>e.classList.toggle('act',+e.dataset.i===i));
+  if(isHost)S[1].bar[i]={n:0,nh:0,rh:0,sdn:0,sdr:0};else send(hostConn,{t:'bstart',i});
+  $('#barinfo').textContent='測試中：色條 '+(i?'B':'A')+'，按 D（共 '+cfg.trials+' 次）';
+});
+function recordBar(s,i,n,r){
+  const b=S[s].bar[i];b.n++;if(n.hit)b.nh++;if(r.hit)b.rh++;b.sdn+=n.dev;b.sdr+=r.dev;
+}
+function pressD(tOverride){
+  if(bar.i===null||bar.n>=cfg.trials||!ready())return;
+  const t=tOverride!==undefined?tOverride:hostNow();
+  bar.n++;
+  const w=bar.i?cfg.wB:cfg.wA;
+  if(isHost){
+    const e=barEval(t,w);recordBar(1,bar.i,e,e);
+    showBarResult({seq:bar.n,i:bar.i,n:e.hit,r:e.hit,dn:e.dev,dr:e.dev});
+  }else send(hostConn,{t:'press',i:bar.i,seq:bar.n,ts:t});
+}
+function showBarResult(m){
+  const f=x=>(x>=0?'+':'')+x.toFixed(0)+'ms';
+  const done=bar.n>=cfg.trials?'  ✔ 已完成':'';
+  $('#barinfo').innerHTML='第 '+m.seq+'/'+cfg.trials+' 次：樸素 '+(m.n?'✅':'❌')+' ('+f(m.dn)+')　回溯 '+(m.r?'✅':'❌')+' ('+f(m.dr)+')'+done+'<br><span class="hint">偏差：正值=比綠區中心晚。樸素=P1 收到瞬間判定；回溯=用你按下時看到的時間判定。</span>';
+}
+setInterval(()=>{ // bot
+  if(!$('#bot').checked||bar.i===null||bar.n>=cfg.trials||!ready()||$('#secBar').style.display==='none')return;
+  const t=hostNow(),m=Math.ceil(((t-cfg.epoch)/cfg.period-.25)/.5),tc=cfg.epoch+cfg.period*(.25+.5*m);
+  if(m!==lastM&&tc-t<30){lastM=m;setTimeout(()=>pressD(tc),Math.max(0,tc-t));}
+},15);
+addEventListener('keydown',e=>{
+  if((e.key==='d'||e.key==='D')&&!e.repeat&&$('#secBar').style.display!=='none')pressD();
+});
+
+/* ---------- 子彈長廊 ---------- */
+const cor={running:false,x:W/2,y:H-LANE/2,goal:'top',cross:0,hits:0,flash:0,seen:{}};
+const keys={};
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=1;if(e.key.startsWith('Arrow')&&$('#secCor').style.display!=='none')e.preventDefault()});
+addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=0});
+function rnd(k,salt){
+  let x=Math.imul(k+1,374761393)^Math.imul(salt,668265263)^cfg.seed;
+  x=Math.imul(x^(x>>>13),1274126177);x^=x>>>16;
+  return((x>>>0)%100000)/100000;
+}
+function bulletsAt(t){
+  const age0=t-cfg.epoch,life=1000*W/cfg.speed,out=[];
+  const kmax=Math.floor(age0/cfg.interval),kmin=Math.max(0,Math.ceil((age0-life)/cfg.interval));
+  for(let k=kmin;k<=kmax;k++){
+    const age=age0-k*cfg.interval,side=rnd(k,1)<.5?0:1;
+    const y=LANE+10+rnd(k,2)*(H-2*LANE-20),dx=cfg.speed*age/1000;
+    out.push({k,x:side?W-dx:dx,y});
+  }
+  return out;
+}
+function corReset(){cor.x=W/2;cor.y=H-LANE/2;cor.goal='top';}
+$('#corStart').onclick=()=>{
+  if(!ready()){$('#corinfo').textContent='校時中，請稍候…';return}
+  corReset();cor.running=true;cor.cross=0;cor.hits=0;
+  if(isHost)S[1].cor={cross:0,local:{},host:{},running:true};else send(hostConn,{t:'cstart'});
+};
+$('#corStop').onclick=()=>{cor.running=false;if(!isHost)send(hostConn,{t:'pos',run:0,x:cor.x,y:cor.y,ts:hostNow()});if(isHost)S[1].cor.running=false;};
+setInterval(()=>{if(cor.running&&!isHost)send(hostConn,{t:'pos',run:1,x:cor.x,y:cor.y,ts:hostNow()})},33);
+
+let lastF=now();
+function frame(){
+  const tn=now(),dt=Math.min(.05,(tn-lastF)/1000);lastF=tn;
+  $('#warn').style.display=document.hidden?'block':'none';
+  // 色條指針
+  if(ready()){
+    const t=hostNow();
+    $$('.barwrap').forEach(el=>{el.querySelector('.ptr').style.left=(barPos(t).p*100)+'%'});
+  }
+  // 長廊
+  if(cor.running&&ready()){
+    const bot=$('#bot').checked;
+    let dx=(keys['arrowright']||keys['d']?1:0)-(keys['arrowleft']||keys['a']?1:0);
+    let dy=(keys['arrowdown']||keys['s']?1:0)-(keys['arrowup']||keys['w']?1:0);
+    if(bot){dx=0;dy=cor.goal==='top'?-1:1}
+    const sp=220;
+    cor.x=Math.max(10,Math.min(W-10,cor.x+dx*sp*dt));
+    cor.y=Math.max(10,Math.min(H-10,cor.y+dy*sp*dt));
+    if(cor.goal==='top'&&cor.y<LANE){cor.goal='bottom';cor.cross++;crossed()}
+    else if(cor.goal==='bottom'&&cor.y>H-LANE){cor.goal='top';cor.cross++;crossed()}
+    const t=hostNow();
+    for(const b of bulletsAt(t)){
+      if(Math.hypot(b.x-cor.x,b.y-cor.y)<18&&!cor.seen[b.k]){
+        cor.seen[b.k]=1;cor.hits++;cor.flash=300;
+        if(isHost){S[1].cor.local[b.k]=t;S[1].cor.host[b.k]=t}
+        else send(hostConn,{t:'chit',id:b.k,ts:t});
+        corReset();break;
+      }
+    }
+  }
+  if(cor.flash>0)cor.flash-=dt*1000;
+  if($('#secCor').style.display!=='none')drawCor();
+  requestAnimationFrame(frame);
+}
+function crossed(){
+  if(isHost)S[1].cor.cross=cor.cross;else send(hostConn,{t:'cross',n:cor.cross});
+}
+function drawCor(){
+  const g=$('#cv').getContext('2d'),t=ready()?hostNow():0;
+  g.fillStyle='#0b0e14';g.fillRect(0,0,W,H);
+  g.fillStyle='#14301f';g.fillRect(0,0,W,LANE);g.fillRect(0,H-LANE,W,LANE);
+  g.fillStyle='#8b9bb4';g.font='14px sans-serif';g.fillText('上走道',8,20);g.fillText('下走道',8,H-LANE+20);
+  if(!ready())return;
+  g.fillStyle='#ef4444';
+  for(const b of bulletsAt(t)){g.beginPath();g.arc(b.x,b.y,8,0,7);g.fill()}
+  if(isHost){ // 看 P1 眼中的遠端玩家
+    const tj=t-(cfg.jmode==='B'?cfg.buf:0);
+    for(const s in conns){const p=S[s]&&S[s].cor.running&&posAt(hist[s],tj);if(!p)continue;
+      g.strokeStyle=COL[s];g.lineWidth=3;g.beginPath();g.arc(p.x,p.y,10,0,7);g.stroke();
+      g.fillStyle=COL[s];g.fillText('P'+s,p.x+12,p.y-12);g.fillStyle='#ef4444';}
+  }
+  g.fillStyle=cor.flash>0?'#fff':COL[slot];
+  g.beginPath();g.arc(cor.x,cor.y,10,0,7);g.fill();
+  $('#corinfo').textContent=(cor.running?'進行中':'未開始')+'｜完成走道 '+cor.cross+' 次｜被打到 '+cor.hits+' 次'+(isHost?'｜空心圈=P1 眼中的其他玩家':'');
+}
+function posAt(h,t){
+  if(!h||!h.length)return null;
+  const last=h[h.length-1];if(t>=last.t)return last;
+  for(let i=h.length-1;i>0;i--){
+    if(h[i-1].t<=t){const a=h[i-1],b=h[i],f=(t-a.t)/(b.t-a.t||1);return{x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f}}
+  }
+  return h[0];
+}
+function hostJudgeTick(){
+  const tn=now(),tj=tn-(cfg.jmode==='B'?cfg.buf:0);
+  const bl=bulletsAt(tj);
+  for(const s in conns){
+    const st=S[s];if(!st||!st.cor.running)continue;
+    const h=hist[s];if(!h||!h.length||tn-h[h.length-1].t>500)continue;
+    const p=posAt(h,tj);if(!p)continue;
+    for(const b of bl){
+      if(Math.hypot(b.x-p.x,b.y-p.y)<18&&!st.cor.host[b.k])st.cor.host[b.k]=tj;
+    }
+  }
+}
+
+/* ---------- 統計 ---------- */
+function summarize(s){
+  const st=S[s];if(!st)return null;
+  const bar=st.bar.map(b=>({n:b.n,nh:b.n?b.nh/b.n:null,rh:b.n?b.rh/b.n:null,dn:b.n?b.sdn/b.n:null,dr:b.n?b.sdr/b.n:null}));
+  const tn=now()-2000;let oL=0,oH=0;
+  const L=st.cor.local,Ho=st.cor.host;
+  for(const k in L)if(L[k]<tn&&!(k in Ho))oL++;
+  for(const k in Ho)if(Ho[k]<tn&&!(k in L))oH++;
+  return{slot:s,conn:s===1?'—':st.conn,rtt:s===1?null:st.rtt,bar,
+    cor:{cross:st.cor.cross,lh:Object.keys(L).length,hh:Object.keys(Ho).length,oL,oH}};
+}
+function broadcastStats(){
+  allStats=Object.keys(S).map(s=>summarize(+s)).filter(Boolean);
+  for(const s in conns)send(conns[s],{t:'stats',s:allStats});
+  renderStats();
+}
+const pc=x=>x==null?'-':(x*100).toFixed(0)+'%';
+const ms=x=>x==null?'-':(x>=0?'+':'')+x.toFixed(0);
+const f1=x=>x==null?'-':x.toFixed(1);
+function renderStats(){
+  let h='<table><tr><th rowspan=2>玩家</th><th rowspan=2>連線類型</th><th colspan=5>網路 (ms)</th><th colspan=4>色條 A</th><th colspan=4>色條 B</th><th colspan=5>子彈長廊</th></tr>'+
+  '<tr><th>RTT均</th><th>最大</th><th>抖動</th><th>P95</th><th>遺失</th>'+
+  '<th>次數</th><th>樸素✅</th><th>回溯✅</th><th>偏差 樸/回</th>'+
+  '<th>次數</th><th>樸素✅</th><th>回溯✅</th><th>偏差 樸/回</th>'+
+  '<th>走道</th><th>本地中</th><th>P1判中</th><th>P1判中/本地沒中</th><th>本地中/P1沒判</th></tr>';
+  for(const a of allStats){
+    const r=a.rtt;
+    h+='<tr><td style="color:'+COL[a.slot]+'"><b>P'+a.slot+'</b></td><td>'+a.conn+'</td>'+
+    (r?'<td>'+f1(r.avg)+'</td><td>'+f1(r.max)+'</td><td>'+f1(r.jit)+'</td><td>'+f1(r.p95)+'</td><td>'+pc(r.loss)+'</td>':'<td colspan=5>—</td>');
+    for(const b of a.bar)h+='<td>'+b.n+'</td><td>'+pc(b.nh)+'</td><td>'+pc(b.rh)+'</td><td>'+ms(b.dn)+' / '+ms(b.dr)+'</td>';
+    h+='<td>'+a.cor.cross+'</td><td>'+a.cor.lh+'</td><td>'+a.cor.hh+'</td><td>'+a.cor.oH+'</td><td>'+a.cor.oL+'</td></tr>';
+  }
+  $('#stats').innerHTML=h+'</table><div class="hint" style="margin-top:6px">「P1判中/本地沒中」＝你畫面上閃過了卻被 P1 判中（最傷手感）；「本地中/P1沒判」＝你畫面被打到但 P1 沒判。P1 自己是對照組。</div>';
+}
+$('#btnCsv').onclick=()=>{
+  let c='player,conn,rttAvg,rttMax,jitter,p95,loss,A_n,A_naive,A_rewind,A_devN,A_devR,B_n,B_naive,B_rewind,B_devN,B_devR,cross,localHits,hostHits,hostOnly,localOnly\n';
+  for(const a of allStats){const r=a.rtt||{};
+    c+=['P'+a.slot,a.conn,r.avg,r.max,r.jit,r.p95,r.loss].join(',')+',';
+    for(const b of a.bar)c+=[b.n,b.nh,b.rh,b.dn,b.dr].join(',')+',';
+    c+=[a.cor.cross,a.cor.lh,a.cor.hh,a.cor.oH,a.cor.oL].join(',')+'\n';}
+  const u=URL.createObjectURL(new Blob([c],{type:'text/csv'}));
+  const el=document.createElement('a');el.href=u;el.download='latency-test.csv';el.click();
+};
+
+/* ---------- 分頁 ---------- */
+function tab(w){
+  $('#secBar').style.display=w?'none':'block';$('#secCor').style.display=w?'block':'none';
+  $('#tabBar').classList.toggle('on',!w);$('#tabCor').classList.toggle('on',!!w);
+}
+$('#tabBar').onclick=()=>tab(0);$('#tabCor').onclick=()=>tab(1);
+</script>
+</body>
+</html>
